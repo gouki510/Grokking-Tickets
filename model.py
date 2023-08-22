@@ -36,7 +36,7 @@ class Embed(nn.Module):
 class Unembed(nn.Module):
     def __init__(self, d_vocab, d_model):
         super().__init__()
-        self.W_U = nn.Parameter(torch.randn(d_model, d_vocab)/np.sqrt(d_vocab))
+        self.W_U = nn.Parameter(torch.randn(d_model, d_vocab))
 
     def forward(self, x):
         return (x @ self.W_U)
@@ -45,7 +45,7 @@ class Unembed(nn.Module):
 class PosEmbed(nn.Module):
     def __init__(self, max_ctx, d_model):
         super().__init__()
-        self.W_pos = nn.Parameter(torch.randn(max_ctx, d_model)/np.sqrt(d_model))
+        self.W_pos = nn.Parameter(torch.randn(max_ctx, d_model))
 
     def forward(self, x):
         return x+self.W_pos[:x.shape[-2]]
@@ -231,43 +231,21 @@ class OnlyMLP(nn.Module):
         super().__init__()
         #self.model = [model]
         self.use_ln = use_ln
-        self.W_1 = nn.Parameter(torch.randn(d_vocab, d_model))
-        #self.b_1 = nn.Parameter(torch.zeros(d_vocab))
-        #self.W_2 = nn.Parameter(torch.randn(d_vocab, d_mlp))
-        #self.b_2 = nn.Parameter(torch.zeros(d_model))
+        self.unembed = Unembed(d_vocab, d_model)
         self.embed = Embed(d_vocab, d_model)
-        #self.unembed = Unembed(d_vocab, d_model)
+        self.mlps = nn.ModuleList([nn.Linear(d_model,d_model) for i in range(num_layers)])
         self.act_type = act_type
-        #self.ln1 = nn.LayerNorm(d_mlp)
-        #self.ln2 = nn.LayerNorm(d_model)
         assert act_type in ['ReLU', 'GeLU']
+        self.act = nn.ReLU() if act_type=='ReLU' else nn.GELU()
 
     def forward(self, x):
-        #print("emb",x)
         x = self.embed(x)
         x = x.sum(dim=1)
-        #x = torch.cat([x[:,i,:] for i in range(x.shape[1])],dim=1)
-
-        #x = einops.rearrange(x, 'b p m  -> b (p m)')
-        #print(x.shape)
-        #print(self.W_1.shape)
-        if self.act_type=='ReLU':
-            x = F.relu(x)
-        elif self.act_type=='GeLU':
-            x = F.gelu(x)
-        x = torch.einsum('md,bd->bm', self.W_1, x) #+ self.b_1
-        #print("fc1",x)
-        #x = self.ln1(x)
-        #print("embl",x)
-        """if self.act_type=='ReLU':
-            x = F.relu(x)
-        elif self.act_type=='GeLU':
-            x = F.gelu(x)
-        x = torch.einsum('dm,bm->bd', self.W_2, x) #+ self.b_2"""
-        #print("fc2",x)
-        #x = self.ln2(x)
-        #x = self.unembed(x)
-        #print("unemb",x)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        x = self.unembed(x)
         return x
 
     def get_embedding(self, x):

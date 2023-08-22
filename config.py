@@ -19,8 +19,8 @@ class Exp(object):
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0 
-        self.root = Path("0819") 
-        self.model = 'transformer' # ['mlp', 'transformer']
+        self.root = Path("0822") 
+        self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
 
