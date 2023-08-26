@@ -260,25 +260,20 @@ def visualize_weight_distribution(model, color="C0"):
     weights = {}
     for name, param in model.state_dict().items():
         key_name = f"Layer {name.split('.')[-1]}"
-        weights[key_name] = param.detach().view(-1).cpu().numpy().astype(np.float32)
+        weights[name] = param.detach().view(-1).cpu().numpy().astype(np.float32)
     fig = plot_dists(weights, color=color, xlabel="Weight vals")
     return fig
 
 
 def visualize_weight(model):
-    weights = {}
+    ims = []
     for name, param in model.state_dict().items():
         key_name = f"Layer {name.split('.')[-1]}"
         if len(param.shape) != 2:
           continue
-        weights[key_name] = param.detach().cpu().numpy().astype(np.float32)
-    ims = []
-    for key in sorted(weights.keys()):
-        if len(weights[key].shape) == 1:
-          continue
-        #key_ax = ax[fig_index%columns]
-        im = plt.pcolor(weights[key])
-        plt.title(key,fontsize=20)
+        weight = param.detach().cpu().numpy().astype(np.float32)
+        im = plt.pcolor(weight)
+        plt.title(name,fontsize=20)
         plt.colorbar(im)
         ims.append(wandb.Image(im))
         plt.close()
@@ -303,6 +298,6 @@ def get_weight_norm(model):
     for name, param in model.state_dict().items():
         key_name = f"Layer {name.split('.')[-1]}"
         weights[key_name] = param.detach().view(-1).cpu().numpy().astype(np.float32)
-    l1norm = np.linalg.norm(np.concatenate([weights[key] for key in sorted(weights.keys())]), ord=1)
-    l2norm = np.linalg.norm(np.concatenate([weights[key] for key in sorted(weights.keys())]), ord=2)
+    l1norm = np.linalg.norm(np.concatenate([weights[key] for key in sorted(weights.keys())]), ord=1)/len(weights)
+    l2norm = np.linalg.norm(np.concatenate([weights[key] for key in sorted(weights.keys())]), ord=2)/len(weights)
     return l1norm, l2norm

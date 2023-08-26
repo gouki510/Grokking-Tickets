@@ -25,8 +25,8 @@ def main(config):
         model = Transformer(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_mlp=config.d_mlp, \
                             d_head=config.d_head, num_heads=config.num_heads, n_ctx=config.n_ctx, act_type=config.act_type, use_cache=False, use_ln=config.use_ln)
     elif config.model == 'mlp':
-        model = OnlyMLP(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_mlp=config.d_mlp, d_head=config.d_head, \
-                    num_heads=config.num_heads, n_ctx=config.n_ctx, act_type=config.act_type, use_cache=False, use_ln=config.use_ln)
+        model = OnlyMLP(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_emb=config.d_emb, 
+                     act_type=config.act_type,  use_ln=config.use_ln, weight_scale=config.weight_scale)
     model.to('cuda')
     optimizer = optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay, betas=(0.9, 0.98))
     #scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))

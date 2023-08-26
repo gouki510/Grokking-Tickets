@@ -26,26 +26,28 @@ sns.set()
 """
 # Embed & Unembed
 class Embed(nn.Module):
-    def __init__(self, d_vocab, d_model):
+    def __init__(self, d_vocab, d_emb, weight_scale=1):
         super().__init__()
-        self.W_E = nn.Parameter(torch.randn(d_model, d_vocab))
+        self.W_E = nn.Parameter(torch.randn(d_emb, d_vocab))
+        torch.nn.init.normal_(self.W_E, mean=0, std=weight_scale/np.sqrt(d_vocab))
 
     def forward(self, x):
         return torch.einsum('dbp -> bpd', self.W_E[:, x])
 
 class Unembed(nn.Module):
-    def __init__(self, d_vocab, d_model):
+    def __init__(self, d_vocab, d_emb, weight_scale=1):
         super().__init__()
-        self.W_U = nn.Parameter(torch.randn(d_model, d_vocab))
+        self.W_U = nn.Parameter(torch.randn(d_emb, d_vocab))
+        torch.nn.init.normal_(self.W_U, mean=0, std=weight_scale/np.sqrt(d_emb))
 
     def forward(self, x):
         return (x @ self.W_U)
 
 # Positional Embeddings
 class PosEmbed(nn.Module):
-    def __init__(self, max_ctx, d_model):
+    def __init__(self, max_ctx, d_model, weight_scale=1):
         super().__init__()
-        self.W_pos = nn.Parameter(torch.randn(max_ctx, d_model))
+        self.W_pos = nn.Parameter(torch.randn(max_ctx, d_model)*weight_scale)
 
     def forward(self, x):
         return x+self.W_pos[:x.shape[-2]]
@@ -109,6 +111,16 @@ class Attention(nn.Module):
 
 # MLP Layers
 class MLP(nn.Module):
+    def __init__(self, d_in, d_out, act_type, weight_scale=1):
+        super().__init__()
+        self.W = nn.Parameter(torch.randn(d_out, d_in))
+        torch.nn.init.normal_(self.W, mean=0, std=weight_scale/np.sqrt(d_in))
+    
+    def forward(self, x):
+        return x @ self.W.T
+
+# for transformer
+class MLP2(nn.Module):
     """
     b : batch size
     d : embedding size of token
@@ -154,7 +166,7 @@ class TransformerBlock(nn.Module):
         # self.ln1 = LayerNorm(d_model, model=self.model)
         self.attn = Attention(d_model, num_heads, d_head, n_ctx, model=self.model)
         # self.ln2 = LayerNorm(d_model, model=self.model)
-        self.mlp = MLP(d_model, d_mlp, act_type, model=self.model)
+        self.mlp = MLP2(d_model, d_mlp, act_type, model=self.model)
         self.hook_attn_out = HookPoint()
         self.hook_mlp_out = HookPoint()
         self.hook_resid_pre = HookPoint()
@@ -227,25 +239,54 @@ class OnlyMLP(nn.Module):
     i : number of heads
     h : embedding size of each heads
     """
-    def __init__(self, num_layers, d_vocab, d_model, d_mlp, d_head, num_heads, n_ctx, act_type, use_cache=False, use_ln=True):
+    def __init__(self, num_layers, d_vocab, d_model, d_emb, act_type,use_ln=True, weight_scale=1):
         super().__init__()
         #self.model = [model]
         self.use_ln = use_ln
-        self.unembed = Unembed(d_vocab, d_model)
-        self.embed = Embed(d_vocab, d_model)
-        self.mlps = nn.ModuleList([nn.Linear(d_model,d_model) for i in range(num_layers)])
+        self.unembed = Unembed(d_vocab, d_emb, weight_scale=weight_scale)
+        self.embed = Embed(d_vocab, d_emb, weight_scale=weight_scale)
+        self.inproj = MLP(d_emb, d_model, act_type, weight_scale=weight_scale)
+        self.outproj = MLP(d_model, d_emb, act_type, weight_scale=weight_scale)
+        self.mlps = nn.ModuleList([MLP(d_model,d_model,act_type,weight_scale=weight_scale) for i in range(num_layers)])
         self.act_type = act_type
         assert act_type in ['ReLU', 'GeLU']
         self.act = nn.ReLU() if act_type=='ReLU' else nn.GELU()
 
     def forward(self, x):
         x = self.embed(x)
+        x = self.inproj(x)
         x = x.sum(dim=1)
         x = self.act(x)
         for mlp in self.mlps:
             x = mlp(x)
             x = self.act(x)
+        x = self.outproj(x)
         x = self.unembed(x)
+        return x
+
+    def get_embedding(self, x):
+        return self.embed(x)
+    
+
+class MnistMLP(nn.Module):
+    def __init__(self, num_layers, d_input, d_model, d_class, act_type, use_ln=True, weight_scale=1):
+        super().__init__()
+        #self.model = [model]
+        self.use_ln = use_ln
+        self.inproj = MLP(d_input, d_model, act_type, weight_scale=weight_scale)
+        self.outproj = MLP(d_model, d_class, act_type, weight_scale=weight_scale)
+        self.mlps = nn.ModuleList([MLP(d_model,d_model,act_type,weight_scale=weight_scale) for i in range(num_layers)])
+        self.act_type = act_type
+        assert act_type in ['ReLU', 'GeLU']
+        self.act = nn.ReLU() if act_type=='ReLU' else nn.GELU()
+
+    def forward(self, x):
+        x = self.inproj(x)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        x = self.outproj(x)
         return x
 
     def get_embedding(self, x):
