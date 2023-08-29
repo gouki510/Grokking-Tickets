@@ -9,6 +9,7 @@ import tqdm.notebook as tqdm
 from utils import HookPoint
 import seaborn as sns
 sns.set()
+from utils import GetSubnet, SupermaskLinear, SupermaskEmbedd
 
 
 
@@ -28,7 +29,7 @@ sns.set()
 class Embed(nn.Module):
     def __init__(self, d_vocab, d_emb, weight_scale=1):
         super().__init__()
-        self.W_E = nn.Parameter(torch.randn(d_emb, d_vocab))
+        self.W_E = nn.Parameter(torch.randn(d_emb, d_vocab)*weight_scale)
         torch.nn.init.normal_(self.W_E, mean=0, std=weight_scale/np.sqrt(d_vocab))
 
     def forward(self, x):
@@ -37,7 +38,7 @@ class Embed(nn.Module):
 class Unembed(nn.Module):
     def __init__(self, d_vocab, d_emb, weight_scale=1):
         super().__init__()
-        self.W_U = nn.Parameter(torch.randn(d_emb, d_vocab))
+        self.W_U = nn.Parameter(torch.randn(d_emb, d_vocab)*weight_scale)
         torch.nn.init.normal_(self.W_U, mean=0, std=weight_scale/np.sqrt(d_emb))
 
     def forward(self, x):
@@ -186,7 +187,7 @@ class Transformer(nn.Module):
         self.use_cache = use_cache
 
         self.embed = Embed(d_vocab, d_model)
-        self.pos_embed = PosEmbed(n_ctx, d_model)
+        #self.pos_embed = PosEmbed(n_ctx, d_model)
         self.blocks = nn.ModuleList([TransformerBlock(d_model, d_mlp, d_head, num_heads, n_ctx, act_type, model=[self]) for i in range(num_layers)])
         # self.ln = LayerNorm(d_model, model=[self])
         self.unembed = Unembed(d_vocab, d_model)
@@ -198,7 +199,7 @@ class Transformer(nn.Module):
 
     def forward(self, x):
         x = self.embed(x)
-        x = self.pos_embed(x)
+        #x = self.pos_embed(x)
         for block in self.blocks:
             x = block(x)
         x = self.unembed(x)
@@ -266,7 +267,42 @@ class OnlyMLP(nn.Module):
 
     def get_embedding(self, x):
         return self.embed(x)
-    
+
+class OnlyMLP_onlyadd(nn.Module):
+    """
+    b : batch size
+    d : embedding size of token
+    p : vocabraly size
+    i : number of heads
+    h : embedding size of each heads
+    """
+    def __init__(self, num_layers, d_vocab, d_model, d_emb, act_type,use_ln=True, weight_scale=1):
+        super().__init__()
+        #self.model = [model]
+        self.use_ln = use_ln
+        self.unembed = Unembed(d_vocab*2, d_emb, weight_scale=weight_scale)
+        self.embed = Embed(d_vocab, d_emb, weight_scale=weight_scale)
+        self.inproj = MLP(d_emb, d_model, act_type, weight_scale=weight_scale)
+        self.outproj = MLP(d_model, d_emb, act_type, weight_scale=weight_scale)
+        self.mlps = nn.ModuleList([MLP(d_model,d_model,act_type,weight_scale=weight_scale) for i in range(num_layers)])
+        self.act_type = act_type
+        assert act_type in ['ReLU', 'GeLU']
+        self.act = nn.ReLU() if act_type=='ReLU' else nn.GELU()
+
+    def forward(self, x):
+        x = self.embed(x)
+        x = self.inproj(x)
+        x = x.sum(dim=1)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        x = self.outproj(x)
+        x = self.unembed(x)
+        return x
+
+    def get_embedding(self, x):
+        return self.embed(x)
 
 class MnistMLP(nn.Module):
     def __init__(self, num_layers, d_input, d_model, d_class, act_type, use_ln=True, weight_scale=1):
@@ -291,3 +327,32 @@ class MnistMLP(nn.Module):
 
     def get_embedding(self, x):
         return self.embed(x)
+    
+
+class SLTHMLP(nn.Module):
+    def __init__(self, num_layers, d_vocab, d_model, d_emb, act_type,use_ln=True, weight_scale=1, prune_rate=0.4):
+        super().__init__()
+        #self.model = [model]
+        self.embbed = SupermaskEmbedd(d_vocab, d_emb, weight_scale=weight_scale)
+        self.embbed.set_prune_rate(prune_rate)
+        self.inproj = SupermaskLinear(d_emb, d_model, weight_scale=weight_scale)
+        self.inproj.set_prune_rate(prune_rate)
+        self.outproj = SupermaskLinear(d_model, d_emb, weight_scale=weight_scale)
+        self.outproj.set_prune_rate(prune_rate)
+        self.unembed = SupermaskLinear(d_emb, d_vocab, weight_scale=weight_scale)
+        self.unembed.set_prune_rate(prune_rate)
+        self.mlps = nn.ModuleList([SupermaskLinear(d_model,d_model,weight_scale=weight_scale) for i in range(num_layers)])
+        for mlp in self.mlps:
+            mlp.set_prune_rate(prune_rate)
+        self.act_type = act_type
+        assert act_type in ['ReLU', 'GeLU']
+        self.act = nn.ReLU() if act_type=='ReLU' else nn.GELU()
+    
+    def forward(self, x):
+        x = self.inproj(x)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        x = self.outproj(x)
+        return x    

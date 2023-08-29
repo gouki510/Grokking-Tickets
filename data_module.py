@@ -65,11 +65,11 @@ class MNISTDataModule():
     self.train_dataloader = torch.utils.data.DataLoader(
         self.test_dataset,
         batch_size = num_batch,
-        shuffle = True)
+        shuffle = False)
     self.test_dataloader = torch.utils.data.DataLoader(
         self.train_dataset,     
-        batch_size = num_batch,
-        shuffle = True)
+        batch_size = 10000,
+        shuffle = False)
   
   def get_dataloader(self):
     return self.train_dataloader, self.test_dataloader

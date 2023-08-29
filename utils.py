@@ -157,6 +157,39 @@ class SupermaskLinear(nn.Linear):
         #subnet = subnet.repeat_interleave(B,dim=0)
         w = self.weight * subnet
         return F.linear(x, w, bias=None)
+
+class SupermaskEmbedd(nn.Linear):
+    def __init__(self, *args, **kargs):
+        super().__init__(*args, **kargs)
+
+        # initialize the scores
+        self.scores = nn.Parameter(torch.Tensor(self.weight.size()))
+        nn.init.kaiming_uniform_(self.scores, a=math.sqrt(5))
+        # NOTE: initialize the weights like this.
+        nn.init.kaiming_normal_(self.weight, mode="fan_in", nonlinearity="relu")
+
+        # NOTE: turn the gradient on the weitghts off
+        self.weight.requires_grad = False
+    
+    def set_prune_rate(self, prune_rate):
+        self.prune_rate = prune_rate
+    
+    def set_prune_rate_from_threshold(self, threshold):
+        k = (self.clamped_scores >= threshold).sum().item()
+        n = self.scores.numel()
+        self.prune_rate =  k / n
+    
+    @property
+    def clamped_scores(self):
+        return self.scores.abs()
+    
+    def forward(self, x):
+        B,f = x.size()
+        subnet = GetSubnet.apply(self.clamped_scores, self.prune_rate)
+        #subnet = subnet.repeat_interleave(B,dim=0)
+        w = self.weight * subnet
+        return   torch.einsum('dbp -> bpd', w[:, x])
+    
     
 
 # Helper functions
@@ -174,29 +207,45 @@ def cross_entropy_high_precision(logits, labels):
     loss = -torch.mean(prediction_logprobs)
     return loss
 
-def full_loss(model, data, fn, p):
+def full_loss(model, data, fn, p, is_div=False):
     logits = model(data)[:, -1]
     prob = F.softmax(logits, dim=1)
     labels = torch.tensor([fn(i, j) for i, j in data]).to('cuda')
-    accuracy = multiclass_accuracy(
-        input=logits,
-        target=labels,
-        num_classes=p,
-        average="micro"
-    ).item()
+    if is_div:
+        accuracy = multiclass_accuracy(
+            input=logits,
+            target=labels,
+            num_classes=p*2,
+            average="micro"
+        ).item()
+    else:
+        accuracy = multiclass_accuracy(
+            input=logits,
+            target=labels,
+            num_classes=p,
+            average="micro"
+        ).item()
     return cross_entropy_high_precision(logits, labels), accuracy, torch.mean(torch.gather(prob, index=labels[:, None], dim=-1))
 
-def full_loss_mlp(model, data, fn, p):
+def full_loss_mlp(model, data, fn, p, is_div=False):
     # Take the final position only
     logits = model(data)
     prob = F.softmax(logits, dim=1)
     labels = torch.tensor([fn(i, j) for i, j in data]).to('cuda')
-    accuracy = multiclass_accuracy(
-        input=logits,
-        target=labels,
-        num_classes=p,
-        average="micro"
-    ).item()
+    if is_div:
+        accuracy = multiclass_accuracy(
+            input=logits,
+            target=labels,
+            num_classes=p*2,
+            average="micro"
+        ).item()
+    else:
+        accuracy = multiclass_accuracy(
+            input=logits,
+            target=labels,
+            num_classes=p,
+            average="micro"
+        ).item()
     return cross_entropy_high_precision(logits, labels), accuracy, torch.mean(torch.gather(prob, index=labels[:, None], dim=-1))
 
 def to_numpy(tensor, flat=False):

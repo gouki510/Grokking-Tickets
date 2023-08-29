@@ -29,12 +29,14 @@ def main(config):
     run_name = f"{config.exp_name}"
     datamodule = MNISTDataModule(config.batch_size)
     train_loader,test_loader = datamodule.get_dataloader()
+    print("train_loader",len(train_loader) , "test_loader",len(test_loader))
     print("train_loader",int(len(train_loader)*config.frac_train) , "test_loader",len(test_loader))
     if config.save_models:
         os.makedirs(config.root/run_name,exist_ok=True)
         save_dict = {'model':model.state_dict()}
         torch.save(save_dict, config.root/run_name/'init.pth')
-    criterion = nn.CrossEntropyLoss()
+    #criterion = nn.CrossEntropyLoss()
+    criterion = nn.MSELoss()
     with tqdm(range(config.num_epochs)) as pbar:
       pbar.set_description(f'{run_name}')
       for epoch in pbar:
@@ -48,8 +50,9 @@ def main(config):
 
             inputs = inputs.view(-1, config.d_input) 
             outputs = model(inputs)
-
-            train_loss = criterion(outputs, labels)
+            
+            onehot_labels = F.one_hot(labels, num_classes=config.d_class).float()
+            train_loss = criterion(outputs, onehot_labels)
             loss_sum += train_loss
             acc = (outputs.argmax(dim=1) == labels).float().mean()
             acc_sum += acc
@@ -61,7 +64,7 @@ def main(config):
         train_acc = acc_sum / int(len(train_loader)*config.frac_train)
 
 
-        model.eval()  # モデルを評価モードにする
+        model.eval()
 
         loss_sum = 0
         acc_sum = 0
@@ -69,15 +72,14 @@ def main(config):
         with torch.no_grad():
             for inputs, labels in test_loader:
 
-                # GPUが使えるならGPUにデータを送る
                 inputs = inputs.to('cuda')
                 labels = labels.to('cuda')
-                # ニューラルネットワークの処理を行う
-                inputs = inputs.view(-1, config.d_input) # 画像データ部分を一次元へ並び変える
+                inputs = inputs.view(-1, config.d_input) 
                 outputs = model(inputs)
 
-                # 損失(出力とラベルとの誤差)の計算
-                loss_sum += criterion(outputs, labels)
+
+                onehot_labels = F.one_hot(labels, num_classes=config.d_class).float()
+                loss_sum += criterion(outputs, onehot_labels)
                 acc = (outputs.argmax(dim=1) == labels).float().mean()
                 acc_sum += acc
                 

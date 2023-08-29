@@ -6,21 +6,22 @@ class Exp(object):
     def __init__(self) -> None:
         # Learning Parameter
         self.lr=1e-3 
-        self.weight_decay = 1
+        self.weight_decay = 2
         self.p=67 
-        self.d_emb = 128
-        self.d_model =  24
-        fn_name = 'add'  #['add', 'subtract', 'x2xyy2','rand']
+        self.d_emb = 500
+        self.d_model = 48
+        fn_name = 'rand'  #['add', 'subtract', 'x2xyy2','rand']'
+        self.is_div = True if "only" in fn_name  else False
         self.frac_train = 0.4
-        self.is_symmetric_input = False
-        self.num_epochs = 30000
+        self.is_symmetric_input = True
+        self.num_epochs = 50000
         self.save_models = True 
-        self.save_every = 1000 
+        self.save_every = 10000 
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0 
-        self.root = Path("0826") 
+        self.root = Path("0829") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
@@ -33,7 +34,8 @@ class Exp(object):
         assert self.d_model % self.num_heads == 0
         self.d_head = self.d_model//self.num_heads
         self.act_type = 'ReLU'  # ['ReLU', 'GELU']
-        self.weight_scale = 2
+        self.weight_scale = 1
+        self.prune_rate = 0.4
 
         self.use_ln = False
 
@@ -46,4 +48,4 @@ class Exp(object):
         self.fn = self.fns_dict[fn_name]
         self.exp_name = f"{self.model}_{self.num_layers}L_{self.d_model}D_{self.p}P_\
             {self.frac_train}F_{self.lr}LR_{self.weight_decay}WD_{self.is_symmetric_input}S_\
-            {self.weight_scale}WS"
+            {self.weight_scale}WS_{fn_name}task"

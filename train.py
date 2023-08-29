@@ -9,7 +9,7 @@ from tqdm import tqdm
 from typing import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
-from model import Transformer, OnlyMLP
+from model import Transformer, OnlyMLP, OnlyMLP_onlyadd, SLTHMLP
 from data_module import gen_train_test, train_test_split
 from utils import visualize_weight_distribution, visualize_weight, lines, full_loss, full_loss_mlp, \
     visualize_embedding, get_weight_norm
@@ -25,8 +25,21 @@ def main(config):
         model = Transformer(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_mlp=config.d_mlp, \
                             d_head=config.d_head, num_heads=config.num_heads, n_ctx=config.n_ctx, act_type=config.act_type, use_cache=False, use_ln=config.use_ln)
     elif config.model == 'mlp':
-        model = OnlyMLP(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_emb=config.d_emb, 
-                     act_type=config.act_type,  use_ln=config.use_ln, weight_scale=config.weight_scale)
+        if config.is_div:
+            model = OnlyMLP_onlyadd(num_layers=config.num_layers,d_vocab=config.d_vocab, \
+                                    d_model=config.d_model, d_emb=config.d_emb,\
+                                    act_type=config.act_type, use_ln=config.use_ln, \
+                                    weight_scale=config.weight_scale)
+        else:
+            model = OnlyMLP(num_layers=config.num_layers, d_vocab=config.d_vocab, \
+                            d_model=config.d_model, d_emb=config.d_emb, \
+                            act_type=config.act_type,  use_ln=config.use_ln, \
+                            weight_scale=config.weight_scale)
+    elif config.model == 'slthmlp':
+        model = SLTHMLP(num_layers=config.num_layers, d_vocab=config.d_vocab, \
+                        d_model=config.d_model, d_emb=config.d_emb, \
+                        act_type=config.act_type,  use_ln=config.use_ln, \
+                        weight_scale=config.weight_scale, prune_rate=config.prune_rate)
     model.to('cuda')
     optimizer = optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay, betas=(0.9, 0.98))
     #scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
@@ -42,11 +55,11 @@ def main(config):
       pbar.set_description(f'{run_name}')
       for epoch in pbar:
           if config.model == 'transformer':
-            train_loss,train_acc,train_prob = full_loss(model, train, fn=config.fn , p=config.p)
-            test_loss,test_acc,test_prob = full_loss(model, test, fn=config.fn , p=config.p)
+            train_loss,train_acc,train_prob = full_loss(model, train, fn=config.fn , p=config.p, is_div=config.is_div)
+            test_loss,test_acc,test_prob = full_loss(model, test, fn=config.fn , p=config.p, is_div=config.is_div)
           elif config.model == 'mlp':
-            train_loss,train_acc,train_prob = full_loss_mlp(model, train, config.fn, config.p)
-            test_loss,test_acc,test_prob = full_loss_mlp(model, test, config.fn, config.p)
+            train_loss,train_acc,train_prob = full_loss_mlp(model, train, config.fn, config.p, is_div=config.is_div)
+            test_loss,test_acc,test_prob = full_loss_mlp(model, test, config.fn, config.p, is_div=config.is_div)
           pbar.set_postfix(
                    OrderedDict(
                        Train_Loss=train_loss.item(),
