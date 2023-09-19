@@ -31,18 +31,23 @@ class Embed(nn.Module):
         super().__init__()
         self.W_E = nn.Parameter(torch.randn(d_emb, d_vocab)*weight_scale)
         torch.nn.init.normal_(self.W_E, mean=0, std=weight_scale/np.sqrt(d_vocab))
+        self.register_buffer('weight_mask', torch.ones(self.W_E.shape))
 
     def forward(self, x):
-        return torch.einsum('dbp -> bpd', self.W_E[:, x])
+        W = self.weight_mask * self.W_E
+        #onehot_x = F.one_hot(x, num_classes=self.W_E.shape[-1]).float()
+        return torch.einsum('dbp -> bpd', W[:, x])
 
 class Unembed(nn.Module):
     def __init__(self, d_vocab, d_emb, weight_scale=1):
         super().__init__()
         self.W_U = nn.Parameter(torch.randn(d_emb, d_vocab)*weight_scale)
         torch.nn.init.normal_(self.W_U, mean=0, std=weight_scale/np.sqrt(d_emb))
+        self.register_buffer('weight_mask', torch.ones(self.W_U.shape))
 
     def forward(self, x):
-        return (x @ self.W_U)
+        W = self.weight_mask * self.W_U
+        return (x @ W)
 
 # Positional Embeddings
 class PosEmbed(nn.Module):
@@ -116,9 +121,11 @@ class MLP(nn.Module):
         super().__init__()
         self.W = nn.Parameter(torch.randn(d_out, d_in))
         torch.nn.init.normal_(self.W, mean=0, std=weight_scale/np.sqrt(d_in))
+        self.register_buffer('weight_mask', torch.ones(self.W.shape))
     
     def forward(self, x):
-        return x @ self.W.T
+        W = self.weight_mask * self.W
+        return x @ W.T  
 
 # for transformer
 class MLP2(nn.Module):

@@ -6,11 +6,11 @@ class Exp(object):
     def __init__(self) -> None:
         # Learning Parameter
         self.lr=1e-3 
-        self.weight_decay = 2
+        self.weight_decay = 1
         self.p=67 
         self.d_emb = 500
         self.d_model = 48
-        fn_name = 'rand'  #['add', 'subtract', 'x2xyy2','rand']'
+        fn_name = 'add'  #['add', 'subtract', 'x2xyy2','rand']'
         self.is_div = True if "only" in fn_name  else False
         self.frac_train = 0.4
         self.is_symmetric_input = True
@@ -21,7 +21,7 @@ class Exp(object):
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0 
-        self.root = Path("0829") 
+        self.root = Path("0919/dense") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
