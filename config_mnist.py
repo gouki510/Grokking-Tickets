@@ -14,12 +14,12 @@ class Exp(object):
         self.is_symmetric_input = False
         self.num_epochs = 100000
         self.save_models = True 
-        self.save_every = 1000 
+        self.save_every = 2000 
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0 
-        self.root = Path("0822") 
+        self.root = Path("0926/dense") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 

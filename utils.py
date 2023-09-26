@@ -26,6 +26,8 @@ from functools import *
 import pandas as pd
 from sklearn.manifold import TSNE
 
+from copy import deepcopy
+
 
 class HookPoint(nn.Module):
     def __init__(self):
@@ -204,7 +206,7 @@ def cross_entropy_high_precision(logits, labels):
     # and dodgy gradients
     logprobs = F.log_softmax(logits.to(torch.float64), dim=-1)
     prediction_logprobs = torch.gather(logprobs, index=labels[:, None], dim=-1)
-    loss = -torch.mean(prediction_logprobs)
+    loss = F.cross_entropy(logits,labels)  #-torch.mean(prediction_logprobs)
     return loss
 
 def full_loss(model, data, fn, p, is_div=False):
@@ -229,7 +231,7 @@ def full_loss(model, data, fn, p, is_div=False):
 
 def full_loss_mlp(model, data, fn, p, is_div=False):
     # Take the final position only
-    logits = model(data)
+    logits,emb_list = model(data)
     prob = F.softmax(logits, dim=1)
     labels = torch.tensor([fn(i, j) for i, j in data]).to('cuda')
     if is_div:
@@ -246,7 +248,8 @@ def full_loss_mlp(model, data, fn, p, is_div=False):
             num_classes=p,
             average="micro"
         ).item()
-    return cross_entropy_high_precision(logits, labels), accuracy, torch.mean(torch.gather(prob, index=labels[:, None], dim=-1))
+    return cross_entropy_high_precision(logits, labels), accuracy, \
+        torch.mean(torch.gather(prob, index=labels[:, None], dim=-1)),emb_list
 
 def to_numpy(tensor, flat=False):
     if type(tensor)!=torch.Tensor:
@@ -307,6 +310,7 @@ def plot_dists(val_dict, color="C0", xlabel=None, stat="count", use_kde=True):
 
 def visualize_weight_distribution(model, color="C0"):
     weights = {}
+    model = deepcopy(model)
     for name, param in model.state_dict().items():
         key_name = f"Layer {name.split('.')[-1]}"
         weights[name] = param.detach().view(-1).cpu().numpy().astype(np.float32)
@@ -316,6 +320,7 @@ def visualize_weight_distribution(model, color="C0"):
 
 def visualize_weight(model):
     ims = []
+    model = deepcopy(model)
     for name, param in model.state_dict().items():
         key_name = f"Layer {name.split('.')[-1]}"
         if len(param.shape) != 2:
@@ -330,6 +335,7 @@ def visualize_weight(model):
     return ims
 
 def visualize_embedding(model, p):
+    model = deepcopy(model)
     data = [(i, i) for i in range(p)]
     data = torch.tensor(data).to('cuda')
     emb = model.embed(data)
@@ -343,6 +349,7 @@ def visualize_embedding(model, p):
     return wandb.Image(img)
 
 def get_weight_norm(model):
+    model = deepcopy(model)
     weights = {}
     for name, param in model.state_dict().items():
         key_name = f"Layer {name.split('.')[-1]}"

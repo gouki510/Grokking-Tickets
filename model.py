@@ -261,16 +261,25 @@ class OnlyMLP(nn.Module):
         self.act = nn.ReLU() if act_type=='ReLU' else nn.GELU()
 
     def forward(self, x):
+        emb_list = []
+        emb_list.append(x)
         x = self.embed(x)
+        emb_list.append(x)
         x = self.inproj(x)
+        emb_list.append(x)
         x = x.sum(dim=1)
         x = self.act(x)
+        emb_list.append(x)
         for mlp in self.mlps:
             x = mlp(x)
+            emb_list.append(x)
             x = self.act(x)
+            emb_list.append(x)
         x = self.outproj(x)
+        emb_list.append(x)
         x = self.unembed(x)
-        return x
+        emb_list.append(x)
+        return x, emb_list
 
     def get_embedding(self, x):
         return self.embed(x)
