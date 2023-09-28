@@ -25,6 +25,9 @@ from utils import GetSubnet, SupermaskLinear, SupermaskEmbedd
  i : number of heads
  h : embedding size of each heads
 """
+
+weith_ratio = 0.5576312536233431
+
 # Embed & Unembed
 class Embed(nn.Module):
     def __init__(self, d_vocab, d_emb, weight_scale=1):
@@ -33,6 +36,12 @@ class Embed(nn.Module):
         torch.nn.init.normal_(self.W_E, mean=0, std=weight_scale/np.sqrt(d_vocab))
         #nn.init.constant_(self.W_E, weight_scale)
         self.register_buffer('weight_mask', torch.ones(self.W_E.shape))
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.W_E = nn.Parameter(self.W_E * weight_ratio)
+    
+    def set_weight_ratio_l2(self, weight_ratio):
+        self.W_E = nn.Parameter(self.W_E * torch.sqrt(weight_ratio))
 
     def forward(self, x):
         W = self.weight_mask * self.W_E
@@ -46,6 +55,12 @@ class Unembed(nn.Module):
         torch.nn.init.normal_(self.W_U, mean=0, std=weight_scale/np.sqrt(d_emb))
         #nn.init.constant_(self.W_U, weight_scale)
         self.register_buffer('weight_mask', torch.ones(self.W_U.shape))
+
+    def set_weight_ratio(self, weight_ratio):
+        self.W_U = nn.Parameter(self.W_U * weight_ratio)
+
+    def set_weight_ratio_l2(self, weight_ratio):
+        self.W_U = nn.Parameter(self.W_U * torch.sqrt(weight_ratio))
 
     def forward(self, x):
         W = self.weight_mask * self.W_U
@@ -127,7 +142,12 @@ class MLP(nn.Module):
         self.W = nn.Parameter(torch.randn(d_out, d_in))
         torch.nn.init.normal_(self.W, mean=0, std=weight_scale/np.sqrt(d_in))
         self.register_buffer('weight_mask', torch.ones(self.W.shape))
-        #nn.init.constant_(self.W, weight_scale)
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.W = nn.Parameter(self.W * weight_ratio)
+
+    def set_weight_ratio_l2(self, weight_ratio):
+        self.W = nn.Parameter(self.W * torch.sqrt(weight_ratio))
     
     def forward(self, x):
         W = self.weight_mask * self.W
@@ -267,6 +287,14 @@ class OnlyMLP(nn.Module):
         self.act_type = act_type
         assert act_type in ['ReLU', 'GeLU']
         self.act = nn.ReLU() if act_type=='ReLU' else nn.GELU()
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.embed.set_weight_ratio(weight_ratio)
+        self.unembed.set_weight_ratio(weight_ratio)
+        self.inproj.set_weight_ratio(weight_ratio)
+        self.outproj.set_weight_ratio(weight_ratio)
+        for mlp in self.mlps:
+            mlp.set_weight_ratio(weight_ratio)
 
     def forward(self, x):
         x = self.embed(x)

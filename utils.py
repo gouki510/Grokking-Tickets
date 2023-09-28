@@ -344,8 +344,8 @@ def visualize_embedding(model, p):
 
 def get_weight_norm(model):
     weights = {}
-    mask_keys = [k for k in model.state_dict().keys() if "mask" in k]
-    param_keys = [k for k in model.state_dict().keys() if "mask" not in k]
+    mask_keys = [k for k in model.state_dict().keys() if "weight_mask" in k]
+    param_keys = [k for k in model.state_dict().keys() if ("mask"  not in k) and ("b_" not in k)]
     l2norm = 0
     l2mask_norm = 0
     l1norm = 0
@@ -358,4 +358,4 @@ def get_weight_norm(model):
         l2norm += torch.norm(param,2)
         l1mask_norm += torch.norm(param*mask,1)
         l1norm += torch.norm(param,1)
-    return l1norm.item(), l2norm.item(), l1mask_norm.item(), l2mask_norm.item()
+    return l1norm.item()/len(param_keys), l2norm.item()/len(param_keys), l1mask_norm.item()/len(param_keys), l2mask_norm.item()/len(param_keys)

@@ -25,7 +25,7 @@ warnings.filterwarnings("ignore")
 import copy
 
 def prune_loop(model, loss, pruner, dataloader, device, sparsity=0.4, schedule="linear", scope="global", epochs=1,
-               reinitialize=False, train_mode=False, shuffle=False, invert=False):
+               reinitialize=False, train_mode=False, shuffle=False, invert=False, weight_ratio=-1):
     """
     Prunes model according to pruner and returns masked parameters.
     """
@@ -33,6 +33,11 @@ def prune_loop(model, loss, pruner, dataloader, device, sparsity=0.4, schedule="
     model.train()
     if not train_mode:
         model.eval()
+    
+    if reinitialize and (weight_ratio > 0):
+        model.load_state_dict(torch.load(config.init_weight_path)["model"])
+        model.set_weight_ratio(weight_ratio)
+        return
 
     # Prune model
     for epoch in tqdm(range(epochs)):
@@ -96,7 +101,7 @@ def main(config):
     data_module = ArithmeticDataModule(train,test,config.fn,config.batch_size)
     train_dataloader, test_dataloader = data_module.get_dataloader()
     prune_loop(model, criterion, pruner, train_dataloader, 'cuda', sparsity=config.sparsity, schedule=config.schedule, scope=config.scope,\
-                epochs=config.epochs, reinitialize=config.reinitialize, train_mode=config.train_mode, shuffle=config.shuffle, invert=config.invert)
+                epochs=config.epochs, reinitialize=config.reinitialize, train_mode=config.train_mode, shuffle=config.shuffle, invert=config.invert, weight_ratio=config.weight_ratio)
     optimizer = optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay, betas=(0.9, 0.98))
     #scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
     run_name = f"{config.exp_name}"
@@ -127,6 +132,8 @@ def main(config):
                )
           
           l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
+          if epoch == 0:
+              print(f"init weight norm: l1.{l1norm}, l2.{l2norm}, l1mask.{l1mask_norm}, l2mask.{l2mask_norm}")
           wandb.log({"epoch": epoch, "train_loss": train_loss, "test_loss": test_loss, "train_acc":train_acc, "test_acc":test_acc, \
                      "train_prob":train_prob, "test_prob":test_prob, "l1norm":l1norm, "l2norm":l2norm, "l1mask_norm":l1mask_norm, "l2mask_norm":l2mask_norm})
           train_loss.backward()

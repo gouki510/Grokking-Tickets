@@ -20,8 +20,8 @@ class Exp(object):
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
-        self.seed = 0
-        self.root = Path("0926/mlp_LT_prune") 
+        self.seed = 1
+        self.root = Path("0926/mlp_LT_norm0_same_norm_l2") 
         self.pre_root = Path("0926/mlp_LT_norm0")
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
@@ -35,8 +35,9 @@ class Exp(object):
         assert self.d_model % self.num_heads == 0
         self.d_head = self.d_model//self.num_heads  
         self.act_type = 'ReLU'  # ['ReLU', 'GELU']
-        self.weight_scale = 1
+        self.weight_scale = 1 #0.5576312536233431
         self.prune_rate = 0.4
+        self.weight_ratio = 0.6493382079831002 #0.4152939027995708
 
         self.use_ln = False
 
@@ -50,11 +51,11 @@ class Exp(object):
         
         # pruning
         self.pruner = "mag" # ["rand", "mag", "snip", "grasp", "synflow"]
-        self.sparsity = 0.3
+        self.sparsity = 1#0.4#0.598#1#0.3
         self.schedule = "linear" # ["linear", "exponential"]
         self.scope = "global" # ["global", "local"]
-        self.epochs = 1             
-        self.reinitialize =  True
+        self.epochs = 0             
+        self.reinitialize =  True#True
         self.train_mode = False
         self.shuffle = False
         self.invert = False
@@ -65,11 +66,12 @@ class Exp(object):
 
         self.exp_name = f"{self.model}_{self.num_layers}L_{self.d_model}D_{self.p}P_\
             {self.frac_train}F_{self.lr}LR_{1}WD_{self.is_symmetric_input}S_\
-            {self.weight_scale}WS_{fn_name}task"
+            {1}WS_{fn_name}task"
+        
         checkpoint = "final"
         self.weight_path = self.pre_root/self.exp_name/f"{checkpoint}.pth"
         self.init_weight_path = self.pre_root/self.exp_name/"init.pth"
 
         self.exp_name = f"{self.model}_{self.pruner}_PR_{self.num_layers}L_{self.d_model}D_{self.p}P_\
             {self.frac_train}F_{self.lr}LR_{self.weight_decay}WD_{self.is_symmetric_input}S_\
-            {self.weight_scale}WS_{fn_name}task_{self.reinitialize}_reinit_{checkpoint}_check_{self.sparsity}_sparsity"
+            {self.weight_scale}WS_{fn_name}task_{self.reinitialize}_reinit_{checkpoint}_check_{self.sparsity}_sparsity_l2_same"

@@ -9,7 +9,7 @@ class Exp(object):
         self.weight_decay = 1
         self.p=67 
         self.d_emb = 500
-        self.d_model = 48
+        self.d_model = 48 #48,128
         fn_name = 'add'  #['add', 'subtract', 'x2xyy2','rand']'
         self.is_div = True if "only" in fn_name  else False
         self.frac_train = 0.4
@@ -21,7 +21,7 @@ class Exp(object):
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 1
-        self.root = Path("0926/mlp_LT_norm1") 
+        self.root = Path("0926/mlp_LT_norm0") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
@@ -34,7 +34,7 @@ class Exp(object):
         assert self.d_model % self.num_heads == 0
         self.d_head = self.d_model//self.num_heads
         self.act_type = 'ReLU'  # ['ReLU', 'GELU']
-        self.weight_scale = 0.55
+        self.weight_scale = 1
         self.prune_rate = 0.4
 
         self.use_ln = False
