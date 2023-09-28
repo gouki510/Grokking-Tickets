@@ -29,8 +29,9 @@ from utils import GetSubnet, SupermaskLinear, SupermaskEmbedd
 class Embed(nn.Module):
     def __init__(self, d_vocab, d_emb, weight_scale=1):
         super().__init__()
-        self.W_E = nn.Parameter(torch.randn(d_emb, d_vocab)*weight_scale)
+        self.W_E = nn.Parameter(torch.randn(d_emb, d_vocab))
         torch.nn.init.normal_(self.W_E, mean=0, std=weight_scale/np.sqrt(d_vocab))
+        #nn.init.constant_(self.W_E, weight_scale)
         self.register_buffer('weight_mask', torch.ones(self.W_E.shape))
 
     def forward(self, x):
@@ -41,8 +42,9 @@ class Embed(nn.Module):
 class Unembed(nn.Module):
     def __init__(self, d_vocab, d_emb, weight_scale=1):
         super().__init__()
-        self.W_U = nn.Parameter(torch.randn(d_emb, d_vocab)*weight_scale)
+        self.W_U = nn.Parameter(torch.randn(d_emb, d_vocab))
         torch.nn.init.normal_(self.W_U, mean=0, std=weight_scale/np.sqrt(d_emb))
+        #nn.init.constant_(self.W_U, weight_scale)
         self.register_buffer('weight_mask', torch.ones(self.W_U.shape))
 
     def forward(self, x):
@@ -96,23 +98,26 @@ class Attention(nn.Module):
         self.W_O = nn.Parameter(torch.randn(d_model, d_head * num_heads)/np.sqrt(d_model))
         self.register_buffer('mask', torch.tril(torch.ones((n_ctx, n_ctx))))
         self.d_head = d_head
-        self.hook_k = HookPoint()
-        self.hook_q = HookPoint()
-        self.hook_v = HookPoint()
-        self.hook_z = HookPoint()
-        self.hook_attn = HookPoint()
-        self.hook_attn_pre = HookPoint()
+        self.register_buffer('weight_maskK', torch.ones(self.W_K.shape))
+        self.register_buffer('weight_maskQ', torch.ones(self.W_Q.shape))
+        self.register_buffer('weight_maskV', torch.ones(self.W_V.shape))
+        self.register_buffer('weight_maskO', torch.ones(self.W_O.shape))
+
 
     def forward(self, x):
-        k = self.hook_k(torch.einsum('ihd,bpd->biph', self.W_K, x))
-        q = self.hook_q(torch.einsum('ihd,bpd->biph', self.W_Q, x))
-        v = self.hook_v(torch.einsum('ihd,bpd->biph', self.W_V, x))
+        W_K = self.W_K*self.weight_maskK
+        W_Q = self.W_Q*self.weight_maskQ
+        W_V = self.W_V*self.weight_maskV
+        W_O = self.W_O*self.weight_maskO
+        k = torch.einsum('ihd,bpd->biph', W_K, x)
+        q = torch.einsum('ihd,bpd->biph', W_Q, x)
+        v = torch.einsum('ihd,bpd->biph', W_V, x)
         attn_scores_pre = torch.einsum('biph,biqh->biqp', k, q)
         attn_scores_masked = torch.tril(attn_scores_pre) - 1e10 * (1 - self.mask[:x.shape[-2], :x.shape[-2]])
-        attn_matrix = self.hook_attn(F.softmax(self.hook_attn_pre(attn_scores_masked/np.sqrt(self.d_head)), dim=-1))
-        z = self.hook_z(torch.einsum('biph,biqp->biqh', v, attn_matrix))
+        attn_matrix = F.softmax(attn_scores_masked/np.sqrt(self.d_head), dim=-1)
+        z = torch.einsum('biph,biqp->biqh', v, attn_matrix)
         z_flat = einops.rearrange(z, 'b i q h -> b q (i h)')
-        out = torch.einsum('df,bqf->bqd', self.W_O, z_flat)
+        out = torch.einsum('df,bqf->bqd', W_O, z_flat)
         return out
 
 # MLP Layers
@@ -122,6 +127,7 @@ class MLP(nn.Module):
         self.W = nn.Parameter(torch.randn(d_out, d_in))
         torch.nn.init.normal_(self.W, mean=0, std=weight_scale/np.sqrt(d_in))
         self.register_buffer('weight_mask', torch.ones(self.W.shape))
+        #nn.init.constant_(self.W, weight_scale)
     
     def forward(self, x):
         W = self.weight_mask * self.W
@@ -148,15 +154,17 @@ class MLP2(nn.Module):
         self.hook_pre = HookPoint()
         self.hook_post = HookPoint()
         assert act_type in ['ReLU', 'GeLU']
+        self.register_buffer('weight_mask_in', torch.ones(self.W_in.shape))
+        self.register_buffer('weight_mask_out', torch.ones(self.W_out.shape))
 
     def forward(self, x):
-        x = self.hook_pre(torch.einsum('md,bpd->bpm', self.W_in, x) + self.b_in)
+        x = self.hook_pre(torch.einsum('md,bpd->bpm', self.W_in*self.weight_mask_in, x) + self.b_in)
         if self.act_type=='ReLU':
             x = F.relu(x)
         elif self.act_type=='GeLU':
             x = F.gelu(x)
         x = self.hook_post(x)
-        x = torch.einsum('dm,bpm->bpd', self.W_out, x) + self.b_out
+        x = torch.einsum('dm,bpm->bpd', self.W_out*self.weight_mask_out, x) + self.b_out
         return x
 
 # Transformer Block

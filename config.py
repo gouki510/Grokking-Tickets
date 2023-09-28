@@ -14,14 +14,14 @@ class Exp(object):
         self.is_div = True if "only" in fn_name  else False
         self.frac_train = 0.4
         self.is_symmetric_input = True
-        self.num_epochs = 50000
+        self.num_epochs = 30000
         self.save_models = True 
-        self.save_every = 1000 
+        self.save_every = 2000
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
-        self.seed = 0 
-        self.root = Path("0926/dense2") 
+        self.seed = 1
+        self.root = Path("0926/mlp_LT_norm1") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
@@ -34,7 +34,7 @@ class Exp(object):
         assert self.d_model % self.num_heads == 0
         self.d_head = self.d_model//self.num_heads
         self.act_type = 'ReLU'  # ['ReLU', 'GELU']
-        self.weight_scale = 1
+        self.weight_scale = 0.55
         self.prune_rate = 0.4
 
         self.use_ln = False

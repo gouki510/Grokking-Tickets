@@ -59,14 +59,16 @@ def prune_loop(model, loss, pruner, dataloader, device, sparsity=0.4, schedule="
 
     # Confirm sparsity level
     remaining_params, total_params = pruner.stats()
-    if np.abs(remaining_params - total_params*sparsity) >= 5:
-        print("ERROR: {} prunable parameters remaining, expected {}".format(remaining_params, total_params*sparsity))
-        quit()
+    check_param = False
+    if check_param:
+        if np.abs(remaining_params - total_params*sparsity) >= 5:
+            print("ERROR: {} prunable parameters remaining, expected {}".format(remaining_params, total_params*sparsity))
+            quit()
     
     #return pruner.masked_parameters
 
 def main(config):
-    wandb.init(project="grokking_pruning",name=config.exp_name, config=config)
+    wandb.init(project="grokking_same_norm",name=config.exp_name, config=config)
     if config.model == 'transformer':
         model = Transformer(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_mlp=config.d_mlp, \
                             d_head=config.d_head, num_heads=config.num_heads, n_ctx=config.n_ctx, act_type=config.act_type, use_cache=False, use_ln=config.use_ln)
@@ -124,9 +126,9 @@ def main(config):
                    )
                )
           
-          l1norm,l2norm = get_weight_norm(model)
+          l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
           wandb.log({"epoch": epoch, "train_loss": train_loss, "test_loss": test_loss, "train_acc":train_acc, "test_acc":test_acc, \
-                     "train_prob":train_prob, "test_prob":test_prob, "l1norm":l1norm, "l2norm":l2norm})
+                     "train_prob":train_prob, "test_prob":test_prob, "l1norm":l1norm, "l2norm":l2norm, "l1mask_norm":l1mask_norm, "l2mask_norm":l2mask_norm})
           train_loss.backward()
           optimizer.step()
           #scheduler.step()

@@ -3,7 +3,7 @@ def masks(module):
     r"""Returns an iterator over modules masks, yielding the mask.
     """
     for name, buf in module.named_buffers():
-        if "mask" in name:
+        if "weight_mask" in name:
             yield buf
 
 def parameters(model):
