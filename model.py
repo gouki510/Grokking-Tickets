@@ -134,6 +134,12 @@ class Attention(nn.Module):
         z_flat = einops.rearrange(z, 'b i q h -> b q (i h)')
         out = torch.einsum('df,bqf->bqd', W_O, z_flat)
         return out
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.W_K = nn.Parameter(self.W_K * weight_ratio)
+        self.W_Q = nn.Parameter(self.W_Q * weight_ratio)
+        self.W_V = nn.Parameter(self.W_V * weight_ratio)
+        self.W_O = nn.Parameter(self.W_O * weight_ratio)
 
 # MLP Layers
 class MLP(nn.Module):
@@ -166,9 +172,9 @@ class MLP2(nn.Module):
         super().__init__()
         self.model = model
         self.W_in = nn.Parameter(torch.randn(d_mlp, d_model)/np.sqrt(d_model))
-        self.b_in = nn.Parameter(torch.zeros(d_mlp))
+        #self.b_in = nn.Parameter(torch.zeros(d_mlp))
         self.W_out = nn.Parameter(torch.randn(d_model, d_mlp)/np.sqrt(d_model))
-        self.b_out = nn.Parameter(torch.zeros(d_model))
+        #self.b_out = nn.Parameter(torch.zeros(d_model))
         self.act_type = act_type
         # self.ln = LayerNorm(d_mlp, model=self.model)
         self.hook_pre = HookPoint()
@@ -178,14 +184,18 @@ class MLP2(nn.Module):
         self.register_buffer('weight_mask_out', torch.ones(self.W_out.shape))
 
     def forward(self, x):
-        x = self.hook_pre(torch.einsum('md,bpd->bpm', self.W_in*self.weight_mask_in, x) + self.b_in)
+        x = self.hook_pre(torch.einsum('md,bpd->bpm', self.W_in*self.weight_mask_in, x))# + self.b_in)
         if self.act_type=='ReLU':
             x = F.relu(x)
         elif self.act_type=='GeLU':
             x = F.gelu(x)
         x = self.hook_post(x)
-        x = torch.einsum('dm,bpm->bpd', self.W_out*self.weight_mask_out, x) + self.b_out
+        x = torch.einsum('dm,bpm->bpd', self.W_out*self.weight_mask_out, x)# + self.b_out
         return x
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.W_in = nn.Parameter(self.W_in * weight_ratio)
+        self.W_out = nn.Parameter(self.W_out * weight_ratio)
 
 # Transformer Block
 class TransformerBlock(nn.Module):
@@ -213,6 +223,10 @@ class TransformerBlock(nn.Module):
         x = self.hook_resid_mid(x + self.hook_attn_out(self.attn((self.hook_resid_pre(x)))))
         x = self.hook_resid_post(x + self.hook_mlp_out(self.mlp((x))))
         return x
+
+    def set_weight_ratio(self,weight_ratio):
+        self.attn.set_weight_ratio(weight_ratio)
+        self.mlp.set_weight_ratio(weight_ratio)
 
 # Full transformer
 class Transformer(nn.Module):
@@ -266,6 +280,12 @@ class Transformer(nn.Module):
         for k,v in self.state_dict().items():
           self.state_dict()[k][0:v.shape[0]] = v * mask_dic[k].to(v.device)
 
+    def set_weight_ratio(self, weight_ratio):
+        self.embed.set_weight_ratio(weight_ratio)
+        self.unembed.set_weight_ratio(weight_ratio)
+        for block in self.blocks:
+            block.set_weight_ratio(weight_ratio)
+
 
 class OnlyMLP(nn.Module):
     """
@@ -310,6 +330,13 @@ class OnlyMLP(nn.Module):
 
     def get_embedding(self, x):
         return self.embed(x)
+
+    def get_activation(self, x):
+        x = self.embed(x)
+        x = self.inproj(x)
+        x = x.sum(dim=1)
+        x = self.act(x)
+        return x
 
 class OnlyMLP_onlyadd(nn.Module):
     """

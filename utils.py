@@ -359,3 +359,4 @@ def get_weight_norm(model):
         l1mask_norm += torch.norm(param*mask,1)
         l1norm += torch.norm(param,1)
     return l1norm.item()/len(param_keys), l2norm.item()/len(param_keys), l1mask_norm.item()/len(param_keys), l2mask_norm.item()/len(param_keys)
+

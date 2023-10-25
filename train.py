@@ -21,7 +21,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="grokking_same_norm",name=config.exp_name, config=config)
+    wandb.init(project="grokking_ICLR",name=config.exp_name, config=config)
     if config.model == 'transformer':
         model = Transformer(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_mlp=config.d_mlp, \
                             d_head=config.d_head, num_heads=config.num_heads, n_ctx=config.n_ctx, act_type=config.act_type, use_cache=False, use_ln=config.use_ln)
@@ -118,6 +118,10 @@ def main(config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    #parser.add_argument('--a', type=str, default='transformer', help='model type', default='transformer')
+    parser.add_argument('-s','--seed', type=int, default=0, help='seed')    
     config = Exp()
+    config.seed= parser.parse_args().seed
+    config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
+        {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
+        {config.weight_scale}WS_{config.seed}seed"
     main(config)

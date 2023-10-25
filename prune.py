@@ -23,6 +23,7 @@ from pruner import Pruner, Rand, Mag, SNIP, GraSP, SynFlow
 from generator import  masked_parameters
 warnings.filterwarnings("ignore")
 import copy
+import argparse
 
 def prune_loop(model, loss, pruner, dataloader, device, sparsity=0.4, schedule="linear", scope="global", epochs=1,
                reinitialize=False, train_mode=False, shuffle=False, invert=False, weight_ratio=-1):
@@ -73,7 +74,7 @@ def prune_loop(model, loss, pruner, dataloader, device, sparsity=0.4, schedule="
     #return pruner.masked_parameters
 
 def main(config):
-    wandb.init(project="grokking_same_norm",name=config.exp_name, config=config)
+    wandb.init(project="grokking_ICLR_exp5_trans_nob",name=config.exp_name, config=config)
     if config.model == 'transformer':
         model = Transformer(num_layers=config.num_layers, d_vocab=config.d_vocab, d_model=config.d_model, d_mlp=config.d_mlp, \
                             d_head=config.d_head, num_heads=config.num_heads, n_ctx=config.n_ctx, act_type=config.act_type, use_cache=False, use_ln=config.use_ln)
@@ -86,14 +87,19 @@ def main(config):
     model.to('cuda')
     criterion = nn.CrossEntropyLoss()
     if config.pruner == "rand":
+        print("use rand pruner")
         pruner = Rand(masked_parameters(model))
     elif config.pruner == "mag": 
+        print("use mag pruner")
         pruner = Mag(masked_parameters(model))
     elif config.pruner == "snip":
+        print("use snip pruner")
         pruner = SNIP(masked_parameters(model))
     elif config.pruner == "grasp":
+        print("use grasp pruner")
         pruner = GraSP(masked_parameters(model))
     elif config.pruner == "synflow":
+        print("use synflow pruner")
         pruner = SynFlow(masked_parameters(model))
     else:
         pruner = Rand(masked_parameters(model))
@@ -102,7 +108,6 @@ def main(config):
     train_dataloader, test_dataloader = data_module.get_dataloader()
     prune_loop(model, criterion, pruner, train_dataloader, 'cuda', sparsity=config.sparsity, schedule=config.schedule, scope=config.scope,\
                 epochs=config.epochs, reinitialize=config.reinitialize, train_mode=config.train_mode, shuffle=config.shuffle, invert=config.invert, weight_ratio=config.weight_ratio)
-    optimizer = optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay, betas=(0.9, 0.98))
     #scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
     run_name = f"{config.exp_name}"
     model.train()
@@ -112,6 +117,18 @@ def main(config):
         torch.save(save_dict, config.root/run_name/'init.pth')
     train_losses = []
     test_losses = []
+    same_norm_init = False
+    if same_norm_init:
+        l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
+        l1_weight_ratio = l1mask_norm/l1norm
+        l2_weight_ratio = l2mask_norm/l2norm
+        print(f"mask weight norm: l1.{l1norm}, l2.{l2norm}, l1mask.{l1mask_norm}, l2mask.{l2mask_norm}")
+        model.load_state_dict(torch.load(config.init_weight_path)["model"])
+        model.set_weight_ratio(l2_weight_ratio)
+        l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
+        print(f"same weight norm: l1.{l1norm}, l2.{l2norm}, l1mask.{l1mask_norm}, l2mask.{l2mask_norm}")
+
+    optimizer = optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay, betas=(0.9, 0.98))
 
     with tqdm(range(config.num_epochs)) as pbar:
       pbar.set_description(f'{run_name}')
@@ -136,6 +153,7 @@ def main(config):
               print(f"init weight norm: l1.{l1norm}, l2.{l2norm}, l1mask.{l1mask_norm}, l2mask.{l2mask_norm}")
           wandb.log({"epoch": epoch, "train_loss": train_loss, "test_loss": test_loss, "train_acc":train_acc, "test_acc":test_acc, \
                      "train_prob":train_prob, "test_prob":test_prob, "l1norm":l1norm, "l2norm":l2norm, "l1mask_norm":l1mask_norm, "l2mask_norm":l2mask_norm})
+          
           train_loss.backward()
           optimizer.step()
           #scheduler.step()
@@ -180,5 +198,24 @@ def main(config):
       torch.save(save_dict, config.root/run_name/f"final.pth")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p','--prune_rate', type=float, default=0.4, help='prune rate')
+    parser.add_argument('-s','--seed', type=int, default=1, help='seed') 
+    parser.add_argument('-e','--epoch',  default="final", help='checkpoint epoch')
+    parser.add_argument('-m','--pruner', type=str, default="mag", help='pruner')
     config = Exp()
-    main(config)
+    config.sparsity = parser.parse_args().prune_rate
+    config.seed= parser.parse_args().seed
+    config.checkpoint = parser.parse_args().epoch
+    config.pruner = parser.parse_args().pruner
+    config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
+        {config.frac_train}F_{config.lr}LR_{1}WD_{config.is_symmetric_input}S_\
+        {config.weight_scale}WS_{config.seed}seed"
+    config.weight_path = config.pre_root/config.exp_name/f"{config.checkpoint}.pth"
+    print(config.weight_path)
+    config.init_weight_path = config.pre_root/config.exp_name/f"init.pth"
+    config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
+        {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
+        {config.weight_scale}WS_{config.sparsity}_sparsity_{config.seed}seed_{config.checkpoint}epoch_{config.pruner}_pruner"
+    main(config)    
+    
