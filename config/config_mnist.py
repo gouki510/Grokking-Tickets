@@ -19,7 +19,7 @@ class Exp(object):
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0 
-        self.root = Path("0926/mnist_prun") 
+        self.root = Path("some_exp") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
@@ -31,22 +31,6 @@ class Exp(object):
 
         self.use_ln = False
 
-        # pruning
-        self.pruner = "mag" # ["rand", "mag", "snip", "grasp", "synflow"]
-        self.sparsity = 0.4
-        self.schedule = "linear" # ["linear", "exponential"]
-        self.scope = "global" # ["global", "local"]
-        self.epochs = 1             
-        self.reinitialize =  False
-        self.train_mode = False
-        self.shuffle = False
-        self.invert = False
-
-
-        self.weight_path = "/home/0822/Mnist_mlp_1L_200D__        0.1F_0.001LR_0.1WD_FalseS_        8WS/final.pth"
-        self.init_weight_path = "/home/0822/Mnist_mlp_1L_200D__        0.1F_0.001LR_0.1WD_FalseS_        8WS/init.pth"
-
-        
         self.exp_name = f"Mnist_{self.model}_{self.num_layers}L_{self.d_model}D__\
         {self.frac_train}F_{self.lr}LR_{self.weight_decay}WD_{self.is_symmetric_input}S_\
         {self.weight_scale}WS"
