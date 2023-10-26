@@ -2,7 +2,7 @@
 --- 
 by Gouki Minegishi, Yusuke iwasawa, Yutaka Matsuo  
 arxiv link : ...  
-![Test Image 1](asset/fig1.png)
+![Test Image 1](assets/fig3.png)
 
 ## Setup
 1. Set up a virtualenv with python 3.7.4. You can use pyvenv or conda for this.
@@ -38,3 +38,7 @@ Training confguration is written in `config/config_pruning.py`.
 python prune_mnist.py --config configs/config_pruning_mnist.py
 ```
 Training confguration is written in `config/config_pruning_mnist.py`.
+<p align="center">
+<img src="assets/exp1_mlp.gif" width="50%"  />
+ <img src="fig/frec_in/base.gif" width="50%" /><img src="fig/frec_in/ticket.gif" width="50%" />
+</p>
