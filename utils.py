@@ -344,9 +344,19 @@ def visualize_embedding(model, p):
 
 def get_weight_norm(model):
     weights = {}
-    for name, param in model.state_dict().items():
-        key_name = f"Layer {name.split('.')[-1]}"
-        weights[key_name] = param.detach().view(-1).cpu().numpy().astype(np.float32)
-    l1norm = np.linalg.norm(np.concatenate([weights[key] for key in sorted(weights.keys())]), ord=1)/len(weights)
-    l2norm = np.linalg.norm(np.concatenate([weights[key] for key in sorted(weights.keys())]), ord=2)/len(weights)
-    return l1norm, l2norm
+    mask_keys = [k for k in model.state_dict().keys() if "weight_mask" in k]
+    param_keys = [k for k in model.state_dict().keys() if ("mask"  not in k) and ("b_" not in k)]
+    l2norm = 0
+    l2mask_norm = 0
+    l1norm = 0
+    l1mask_norm = 0
+
+    for mask_key, param_key in zip(mask_keys,param_keys):
+        mask = model.state_dict()[mask_key].detach().cpu()
+        param = model.state_dict()[param_key].detach().cpu()
+        l2mask_norm += torch.norm(param*mask,2)
+        l2norm += torch.norm(param,2)
+        l1mask_norm += torch.norm(param*mask,1)
+        l1norm += torch.norm(param,1)
+    return l1norm.item()/len(param_keys), l2norm.item()/len(param_keys), l1mask_norm.item()/len(param_keys), l2mask_norm.item()/len(param_keys)
+

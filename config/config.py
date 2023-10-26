@@ -9,23 +9,23 @@ class Exp(object):
         self.weight_decay = 1
         self.p=67 
         self.d_emb = 500
-        self.d_model = 48
+        self.d_model = 128
         fn_name = 'add'  #['add', 'subtract', 'x2xyy2','rand']'
         self.is_div = True if "only" in fn_name  else False
         self.frac_train = 0.4
         self.is_symmetric_input = True
-        self.num_epochs = 50000
+        self.num_epochs = 30000
         self.save_models = True 
-        self.save_every = 10000 
+        self.save_every = 2000
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
-        self.seed = 0 
-        self.root = Path("0919/dense") 
-        self.model = 'mlp' # ['mlp', 'transformer']
+        self.seed = 2
+        self.root = Path("some_exp") 
+        self.model = 'transformer' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
-        self.num_layers = 0
+        self.num_layers =  1
         self.batch_style = 'full' # ['full', 'random']
         self.d_vocab = self.p
         self.n_ctx = 2
