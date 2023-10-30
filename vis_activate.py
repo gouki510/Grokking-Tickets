@@ -210,13 +210,9 @@ def frec(weight_path,config,output_file,output_file2,is_mask=False):
         plt.close()
         return base_init, img, img2
     
-def main():
-    grok_weight_path = "/home/0927/exp1/mlp/mlp_0L_48D_67P_        0.4F_0.001LR_1WD_TrueS_        1WS_1seed/final.pth"
-    weight_folder = "/home/0927/exp1/mlp/mlp_0L_48D_67P_        0.4F_0.001LR_1WD_TrueS_        1WS_1seed"
+def main(grok_weight_path=None,ticket_folder=None,weight_folder=None,output_folder=None):
     weight_paths = glob(os.path.join(weight_folder,"*.pth"))
-    ticket_folder = "/home/0927/exp7/mlp/mlp_0L_48D_67P_        0.4F_0.001LR_1.0WD_TrueS_        1WS_0.4_sparsity_1seed_finalepoch_mag_pruner"
     tickets_weight_paths = glob(os.path.join(ticket_folder,"*.pth"))
-    output_folder = "/home/fig/frec_in"
     loss = torch.nn.CrossEntropyLoss(reduction="mean")
     os.makedirs(output_folder, exist_ok=True)
     config = Exp()
@@ -269,9 +265,14 @@ def main():
         
 if __name__ == "__main__":  
     argparse = argparse.ArgumentParser()
-    argparse.add_argument("--weight_path", type=str, default=None)
-    argparse.add_argument("--ticket_weight_path", type=str, default=None)
-    argparse.add_argument("--output_file", type=str, default=None)
+    argparse.add_argument("--grok_weight_path", type=str, default=None)
+    argparse.add_argument("--weight_folder", type=str, default=None)
+    argparse.add_argument("--ticket_folder", type=str, default=None)
+    argparse.add_argument("--output_folder", type=str, default=None)
 
     args = argparse.parse_args()
-    main()
+    grok_weight_path = args.grok_weight_path
+    weight_folder = args.weight_folder
+    ticket_folder = args.ticket_folder
+    output_folder = args.output_folder
+    main(grok_weight_path=grok_weight_path,ticket_folder=ticket_folder,weight_folder=weight_folder,output_folder=output_folder)
