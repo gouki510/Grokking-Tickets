@@ -117,6 +117,12 @@ class Attention(nn.Module):
         self.register_buffer('weight_maskQ', torch.ones(self.W_Q.shape))
         self.register_buffer('weight_maskV', torch.ones(self.W_V.shape))
         self.register_buffer('weight_maskO', torch.ones(self.W_O.shape))
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.W_K = nn.Parameter(self.W_K * weight_ratio)
+        self.W_Q = nn.Parameter(self.W_Q * weight_ratio)
+        self.W_V = nn.Parameter(self.W_V * weight_ratio)
+        self.W_O = nn.Parameter(self.W_O * weight_ratio)
 
 
     def forward(self, x):
@@ -176,6 +182,10 @@ class MLP2(nn.Module):
         assert act_type in ['ReLU', 'GeLU']
         self.register_buffer('weight_mask_in', torch.ones(self.W_in.shape))
         self.register_buffer('weight_mask_out', torch.ones(self.W_out.shape))
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.W_in = nn.Parameter(self.W_in * weight_ratio)
+        self.W_out = nn.Parameter(self.W_out * weight_ratio)
 
     def forward(self, x):
         x = self.hook_pre(torch.einsum('md,bpd->bpm', self.W_in*self.weight_mask_in, x) + self.b_in)
@@ -208,6 +218,10 @@ class TransformerBlock(nn.Module):
         self.hook_resid_pre = HookPoint()
         self.hook_resid_mid = HookPoint()
         self.hook_resid_post = HookPoint()
+    
+    def set_weight_ratio(self, weight_ratio):
+        self.attn.set_weight_ratio(weight_ratio)
+        self.mlp.set_weight_ratio(weight_ratio)
 
     def forward(self, x):
         x = self.hook_resid_mid(x + self.hook_attn_out(self.attn((self.hook_resid_pre(x)))))
@@ -231,6 +245,13 @@ class Transformer(nn.Module):
         for name, module in self.named_modules():
             if type(module)==HookPoint:
                 module.give_name(name)
+
+    def set_weight_ratio(self, weight_ratio):
+        self.embed.set_weight_ratio(weight_ratio)
+        self.unembed.set_weight_ratio(weight_ratio)
+        for block in self.blocks:
+            block.attn.set_weight_ratio(weight_ratio)
+            block.mlp.set_weight_ratio(weight_ratio)
 
     def forward(self, x):
         x = self.embed(x)
