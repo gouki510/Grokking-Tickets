@@ -23,8 +23,10 @@ from utils import (
     get_weight_norm,
     lp_reg,
     get_param,
+    full_loss_multi,
+    visalize_attention,
 )
-from config.config import Exp
+from config.multitask import Exp
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -89,14 +91,14 @@ def main(config):
     run_name = f"{config.exp_name}"
     train, test = gen_train_test_multi(
         config.frac_train,
-        config.d_vocab,
+        config.p,
         seed=config.seed,
         is_symmetric_input=config.is_symmetric_input,
         fn_names=config.fn_name,
-        p=config.p
+        p=config.p,
     )
     if config.save_models:
-        os.makedirs(config.root / run_name, exist_ok=True)
+        os.makedirs(config.root / run_name, exist_ok=True)  
         save_dict = {
             "model": model.state_dict(),
             "train_data": train,
@@ -109,12 +111,12 @@ def main(config):
         pbar.set_description(f"")
         for epoch in pbar:
             if config.model == "transformer":
-                train_loss, train_acc, train_prob = full_loss_multi(
-                    model, train, fn=config.fn, p=config.p, is_div=config.is_div
+                train_loss, train_acc, train_prob, fig_train = full_loss_multi(
+                    model, train, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
                 )
                 train_loss += config.lp_alpha*lp_reg(model, config.lp)
-                test_loss, test_acc, test_prob = full_loss_multi(
-                    model, test, fn=config.fn, p=config.p, is_div=config.is_div
+                test_loss, test_acc, test_prob, fig_test = full_loss_multi(
+                    model, test, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
                 )
             elif config.model == "mlp":
                 train_loss, train_acc, train_prob = full_loss_mlp(
@@ -144,7 +146,7 @@ def main(config):
                     Test_acc=test_acc,
                 )
             )
-            l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
+            #l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
             wandb.log(
                 {
                     "epoch": epoch,
@@ -154,10 +156,10 @@ def main(config):
                     "test_acc": test_acc,
                     "train_prob": train_prob,
                     "test_prob": test_prob,
-                    "l1norm": l1norm,
-                    "l2norm": l2norm,
-                    "l1mask_norm": l1mask_norm,
-                    "l2mask_norm": l2mask_norm,
+                    #"l1norm": l1norm,
+                    #"l2norm": l2norm,
+                    #"l1mask_norm": l1mask_norm,
+                    #"l2mask_norm": l2mask_norm,
                     #"hess_train": hess_train,
                 }
             )
@@ -168,18 +170,27 @@ def main(config):
             if test_loss.item() < config.stopping_thresh:
                 break
             if (config.save_models) and (epoch % config.save_every == 0):
-                fig = visualize_weight_distribution(model)
-                wandb.log({"weight_distribution": fig})
-                plt.close()
-                ims = visualize_weight(model)
-                wandb.log({"weight": ims})
-                plt.close()
-                emb_img = visualize_embedding(model, p=config.p)
-                wandb.log({"embedding": emb_img})
-                plt.close()
+                #fig = visualize_weight_distribution(model)
+                #wandb.log({"weight_distribution": fig})
+                #plt.close()
+                #plt.cla()
+                #ims = visualize_weight(model)
+                #wandb.log({"weight": ims})
+                #plt.close()
+                #plt.cla()
+                #emb_img = visualize_embedding(model, p=config.p)
+                #wandb.log({"embedding": emb_img})
+                #plt.close()
+                if config.model == "transformer":
+                    wandb.log({"fig_train_sample": wandb.Image(fig_train)})
+                    wandb.log({"fig_test_sample": wandb.Image(fig_test)})
+                    plt.close()
+                    plt.cla()
+                    attn_img = visalize_attention(model)
+                    wandb.log({"attention": attn_img})
+                    plt.close()
+                    plt.cla()
 
-                if test_loss.item() < config.stopping_thresh:
-                    break
                 save_dict = {
                     "model": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
@@ -210,14 +221,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=0, help="seed")
     config = Exp()
-    for key, value in config.fns_dict.items():
-        config.fn_name = key
-        print("-"*100)
-        print(f"Running {key} task")
-        print("-"*100)
-        config.seed = parser.parse_args().seed
-        config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
-            {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
-            {config.weight_scale}WS_{config.fn_name}task_{config.lp}LP_{config.lp_alpha}LPA"
-        config.fn = config.fns_dict[config.fn_name]
-        main(config)
+    config.seed = parser.parse_args().seed
+    main(config)

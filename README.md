@@ -1,7 +1,8 @@
 # Grokking Tickets: Lottery Tickets Accelerate Grokking
 --- 
 by Gouki Minegishi, Yusuke iwasawa, Yutaka Matsuo  
-arxiv link : ...  
+arxiv link : [http://arxiv.org/abs/2310.19470](http://arxiv.org/abs/2310.19470)
+
 ![Test Image 1](assets/fig1.png)
 
 ## Setup

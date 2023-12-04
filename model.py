@@ -28,7 +28,6 @@ from utils import GetSubnet, SupermaskLinear, SupermaskEmbedd
 
 weith_ratio = 0.5576312536233431
 
-
 # Embed & Unembed
 class Embed(nn.Module):
     def __init__(self, d_vocab, d_emb, weight_scale=1):
@@ -43,6 +42,10 @@ class Embed(nn.Module):
 
     def set_weight_ratio_l2(self, weight_ratio):
         self.W_E = nn.Parameter(self.W_E * torch.sqrt(weight_ratio))
+
+    def reset_mask(self):
+        self.W_E = nn.Parameter(self.W_E * self.weight_mask)
+        self.weight_mask = torch.ones(self.W_E.shape)
 
     def forward(self, x):
         W = self.weight_mask * self.W_E
@@ -63,6 +66,10 @@ class Unembed(nn.Module):
 
     def set_weight_ratio_l2(self, weight_ratio):
         self.W_U = nn.Parameter(self.W_U * torch.sqrt(weight_ratio))
+    
+    def reset_mask(self):
+        self.W_U = nn.Parameter(self.weight_mask * self.W_U)
+        self.weight_mask = torch.ones(self.W_U.shape)
 
     def forward(self, x):
         W = self.weight_mask * self.W_U
@@ -131,6 +138,7 @@ class Attention(nn.Module):
         self.register_buffer("weight_maskQ", torch.ones(self.W_Q.shape))
         self.register_buffer("weight_maskV", torch.ones(self.W_V.shape))
         self.register_buffer("weight_maskO", torch.ones(self.W_O.shape))
+        self.register_buffer("atten_matrix", torch.zeros((num_heads, n_ctx, n_ctx)))
 
     def forward(self, x):
         W_K = self.W_K * self.weight_maskK
@@ -145,6 +153,7 @@ class Attention(nn.Module):
             1 - self.mask[: x.shape[-2], : x.shape[-2]]
         )
         attn_matrix = F.softmax(attn_scores_masked / np.sqrt(self.d_head), dim=-1)
+        self.set_attention_matrix(attn_matrix)
         z = torch.einsum("biph,biqp->biqh", v, attn_matrix)
         z_flat = einops.rearrange(z, "b i q h -> b q (i h)")
         out = torch.einsum("df,bqf->bqd", W_O, z_flat)
@@ -156,6 +165,12 @@ class Attention(nn.Module):
         self.W_V = nn.Parameter(self.W_V * weight_ratio)
         self.W_O = nn.Parameter(self.W_O * weight_ratio)
 
+    def set_attention_matrix(self, attn_matrix):
+        for i in range(self.atten_matrix.shape[0]):
+            self.atten_matrix[i] = attn_matrix[i].mean(dim=0)
+
+    def get_attention_matrix(self):
+        return self.atten_matrix
 
 # MLP Layers
 class MLP(nn.Module):
@@ -170,6 +185,10 @@ class MLP(nn.Module):
 
     def set_weight_ratio_l2(self, weight_ratio):
         self.W = nn.Parameter(self.W * torch.sqrt(weight_ratio))
+
+    def reset_mask(self):
+        self.W = nn.Parameter(self.W * self.weight_mask)
+        self.weight_mask = torch.ones(self.W.shape)
 
     def forward(self, x):
         W = self.weight_mask * self.W
@@ -254,6 +273,9 @@ class TransformerBlock(nn.Module):
         self.attn.set_weight_ratio(weight_ratio)
         self.mlp.set_weight_ratio(weight_ratio)
 
+    def get_attention_matrix(self):
+        return self.attn.get_attention_matrix()
+
 
 # Full transformer
 class Transformer(nn.Module):
@@ -293,11 +315,16 @@ class Transformer(nn.Module):
                 module.give_name(name)
 
     def forward(self, x):
+        #print("input:",np.array(x))
         x = self.embed(x)
+        #print("embed:",x.shape)
         # x = self.pos_embed(x)
         for block in self.blocks:
             x = block(x)
+        #print("trans:",x.shape)
         x = self.unembed(x)
+        #print("unemdeb:",x.shape)
+        #print(x[:, -1, :].unsqueeze(1).shape)
         return x[:, -1, :].unsqueeze(1)
 
     def set_use_cache(self, use_cache):
@@ -333,6 +360,12 @@ class Transformer(nn.Module):
         self.unembed.set_weight_ratio(weight_ratio)
         for block in self.blocks:
             block.set_weight_ratio(weight_ratio)
+    
+    def get_embedding(self, x):
+        return self.embed(x)
+    
+    def get_attention_matrix(self):
+        return [block.get_attention_matrix() for block in self.blocks]
 
 
 class OnlyMLP(nn.Module):
@@ -372,6 +405,45 @@ class OnlyMLP(nn.Module):
         for mlp in self.mlps:
             mlp.set_weight_ratio(weight_ratio)
 
+    def reset_mask(self):
+        self.embed.reset_mask()
+        self.unembed.reset_mask()
+        self.inproj.reset_mask()
+        self.outproj.reset_mask()
+        for mlp in self.mlps:
+            mlp.reset_mask()
+    
+    def random_priod(self):
+        num_neuron = self.inproj.W.shape[0]
+        f = [np.random.randint(1, 33) for _ in range(num_neuron)]
+        y = [0 if i % f[i] == 0 else 1 for i in range(num_neuron)]
+        #print(self.inproj.weight_mask.shape)
+        self.inproj.weight_mask = torch.tensor(y).float().to(self.inproj.weight_mask.device).repeat(self.inproj.weight_mask.shape[1],1).T
+        ##print(self.inproj.weight_mask.shape)
+        #print(self.embed.weight_mask.shape)
+        self.embed.weight_mask = torch.ones_like(self.embed.weight_mask).to(self.embed.weight_mask.device)
+        #print(self.embed.weight_mask.shape)
+        #print(self.outproj.weight_mask.shape)
+        self.outproj.weight_mask = torch.tensor(y).float().to(self.outproj.weight_mask.device).repeat(self.outproj.weight_mask.shape[0],1)
+        #print(self.outproj.weight_mask.shape)   
+        #print(self.unembed.weight_mask.shape)
+        self.unembed.weight_mask = torch.ones_like(self.unembed.weight_mask).to(self.unembed.weight_mask.device)
+        #print(self.unembed.weight_mask.shape)
+
+    def relive_neurons(self):
+        idx0 = torch.where((self.embed.weight_mask).sum(axis=1)>0)
+        #self.embed.weight_mask[:] = 1
+        idx1 = torch.where((self.inproj.weight_mask).sum(axis=1)==0)
+        self.inproj.weight_mask[idx1] = 1
+        idx2 = torch.where((self.outproj.weight_mask).sum(axis=0)==0)
+        self.outproj.weight_mask[idx2] = 1
+        for mlp in self.mlps:
+            idx3 = torch.where((mlp.weight_mask).sum(axis=1)>0)
+            mlp.weight_mask[idx3] = 1
+        idx4 = torch.where((self.unembed.weight_mask).sum(axis=0)>0)
+        #self.unembed.weight_mask[:] = 1
+
+
     def forward(self, x):
         x = self.embed(x)
         x = self.inproj(x)
@@ -386,6 +458,17 @@ class OnlyMLP(nn.Module):
 
     def get_embedding(self, x):
         return self.embed(x)
+    
+    def pred_from_embedding(self, e):
+        x = self.inproj(e)
+        x = x.sum(dim=1)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        x = self.outproj(x)
+        x = self.unembed(x)
+        return x
 
     def get_activation(self, x):
         x = self.embed(x)

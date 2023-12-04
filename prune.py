@@ -23,6 +23,7 @@ from utils import (
     full_loss_mlp,
     visualize_embedding,
     get_weight_norm,
+    lp_reg,
 )
 from config.config_pruning import Exp
 import warnings
@@ -105,7 +106,7 @@ def prune_loop(
 
 def main(config):
     wandb.init(
-        project="grokking_ICLR_exp5_trans_nob", name=config.exp_name, config=config
+        project="grokking_random_neuron", name=config.exp_name, config=config
     )
     if config.model == "transformer":
         model = Transformer(
@@ -174,6 +175,9 @@ def main(config):
         invert=config.invert,
         weight_ratio=config.weight_ratio,
     )
+    if config.if_mask_reset:
+        model.reset_mask()
+        model.to("cuda")
     # scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
     run_name = f"{config.exp_name}"
     model.train()
@@ -187,6 +191,8 @@ def main(config):
         torch.save(save_dict, config.root / run_name / "init.pth")
     train_losses = []
     test_losses = []
+    model.relive_neurons()
+    #model.random_priod()
     same_norm_init = False
     if same_norm_init:
         l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
@@ -263,9 +269,9 @@ def main(config):
             if test_loss.item() < config.stopping_thresh:
                 break
             if (config.save_models) and (epoch % config.save_every == 0):
-                fig = visualize_weight_distribution(model)
-                wandb.log({"weight_distribution": fig})
-                plt.close()
+                #fig = visualize_weight_distribution(model)
+                #wandb.log({"weight_distribution": fig})
+                #plt.close()
                 ims = visualize_weight(model)
                 wandb.log({"weight": ims})
                 plt.close()
@@ -284,7 +290,8 @@ def main(config):
                     "epoch": epoch,
                 }
                 torch.save(save_dict, config.root / run_name / f"{epoch}.pth")
-                # print(f"Saved model to {root/run_name/f'{epoch}.pth'}")
+            
+
         if not config.save_models:
             os.mkdir(config.root / run_name)
         save_dict = {
@@ -298,14 +305,14 @@ def main(config):
             "epoch": epoch,
         }
         torch.save(save_dict, config.root / run_name / f"final.pth")
-
+        wandb.finish()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-p", "--prune_rate", type=float, default=0.4, help="prune rate"
     )
-    parser.add_argument("-s", "--seed", type=int, default=1, help="seed")
+    parser.add_argument("-s", "--seed", type=int, default=0, help="seed")
     parser.add_argument("-e", "--epoch", default="final", help="checkpoint epoch")
     parser.add_argument("-m", "--pruner", type=str, default="mag", help="pruner")
     config = Exp()
@@ -313,13 +320,22 @@ if __name__ == "__main__":
     config.seed = parser.parse_args().seed
     config.checkpoint = parser.parse_args().epoch
     config.pruner = parser.parse_args().pruner
-    config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
-        {config.frac_train}F_{config.lr}LR_{1}WD_{config.is_symmetric_input}S_\
-        {config.weight_scale}WS_{config.seed}seed"
-    config.weight_path = config.pre_root / config.exp_name / f"{config.checkpoint}.pth"
-    print(config.weight_path)
-    config.init_weight_path = config.pre_root / config.exp_name / f"init.pth"
-    config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
-        {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
-        {config.weight_scale}WS_{config.sparsity}_sparsity_{config.seed}seed_{config.checkpoint}epoch_{config.pruner}_pruner"
-    main(config)
+    for key, value in config.fns_dict.items():
+        config.fn_name = key
+        config.fn = config.fns_dict[config.fn_name]
+        print("-"*100)
+        print(f"Running {key} task")
+        print("-"*100) 
+        config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
+            {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
+            {config.weight_scale}WS_1seed"
+        config.weight_path = config.pre_root / config.exp_name / f"{config.checkpoint}.pth"
+        config.weight_path = "0927/exp1/mlp/mlp_0L_48D_67P_        0.4F_0.001LR_1WD_TrueS_        1WS_2seed/final.pth"
+
+
+        config.init_weight_path = config.pre_root / config.exp_name / f"init.pth"
+        config.init_weight_path = "0927/exp1/mlp/mlp_0L_48D_67P_        0.4F_0.001LR_1WD_TrueS_        1WS_2seed/init.pth"
+        config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
+            {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
+            {config.weight_scale}WS_{config.sparsity}_sparsity_{config.seed}seed_{config.checkpoint}epoch_{config.pruner}_pruner_{config.fn_name}task"
+        main(config)

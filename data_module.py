@@ -20,6 +20,23 @@ def gen_train_test(frac_train, num, seed=0, is_symmetric_input=False):
     div = int(frac_train * len(pairs))
     return pairs[:div], pairs[div:]
 
+def gen_train_test_multi(frac_train, num, seed=0, is_symmetric_input=False, fn_names=["add","substract"], p=67):
+    # Generate train and test split
+    train_data = []
+    test_data = []
+    pairs = []
+    for fn_idx in range(len(fn_names)):
+        if is_symmetric_input:
+            pairs += [(i, p+fn_idx+1, j, p) for i in range(num) for j in range(num) if i >= j]            
+        else:
+            pairs += [(i, p+fn_idx+1, j, p) for i in range(num) for j in range(num)]
+    random.seed(seed)
+    random.shuffle(pairs)
+    div = int(frac_train * len(pairs))
+    train_data = pairs[:div]
+    test_data = pairs[div:]
+    return train_data, test_data
+
 
 def train_test_split(p, train, test):
     is_train = []

@@ -2,11 +2,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
+from torch.autograd.functional import hessian
 from torcheval.metrics.functional import multiclass_accuracy
 import numpy as np
-import einops
-from tqdm import tqdm
 
 import seaborn as sns
 
@@ -18,14 +16,13 @@ import matplotlib.pyplot as plt
 
 # %matplotlib inline
 import plotly.express as px
-import plotly.io as pio
 import plotly.graph_objects as go
 import torch.autograd as autograd
 
 
 from functools import *
-import pandas as pd
 from sklearn.manifold import TSNE
+import copy
 
 
 class HookPoint(nn.Module):
@@ -240,6 +237,27 @@ def full_loss(model, data, fn, p, is_div=False):
     )
 
 
+def full_loss_multi(model, data, fn_dict, p, is_div=False, fn_names=["add", "substract"]):
+    logits = model(data)[:, -1]
+    prob = F.softmax(logits, dim=1)
+    pred = torch.argmax(prob, dim=1)
+    labels = torch.tensor([fn_dict[fn_names[op-p-1]](a, b) for a, op ,b, _ in data ]).to("cuda")
+    fig = visalize_sample(pred, labels, fn_dict, fn_names, p, data)
+    if is_div:
+        accuracy = multiclass_accuracy(
+            input=logits, target=labels, num_classes=p * 2, average="micro"
+        ).item()
+    else:
+        accuracy = multiclass_accuracy(
+            input=logits, target=labels, num_classes=p+1+len(fn_names), average="micro"
+        ).item()
+    return (
+        cross_entropy_high_precision(logits, labels),
+        accuracy,
+        torch.mean(torch.gather(prob, index=labels[:, None], dim=-1)),
+        fig
+    )
+
 def full_loss_mlp(model, data, fn, p, is_div=False):
     # Take the final position only
     logits = model(data)
@@ -258,6 +276,26 @@ def full_loss_mlp(model, data, fn, p, is_div=False):
         accuracy,
         torch.mean(torch.gather(prob, index=labels[:, None], dim=-1)),
     )
+
+def calc_hess(model, data, fn, p, is_div=False):
+        # Take the final position only
+    logits = model(data)
+    prob = F.softmax(logits, dim=1)
+    labels = torch.tensor([fn(i, j) for i, j in data]).to("cuda")
+    if is_div:
+        accuracy = multiclass_accuracy(
+            input=logits, target=labels, num_classes=p * 2, average="micro"
+        ).item()
+    else:
+        accuracy = multiclass_accuracy(
+            input=logits, target=labels, num_classes=p, average="micro"
+        ).item()
+    hess_loss = cross_entropy_high_precision(logits, labels)
+    param = get_param(model)
+    hess = hessian(cross_entropy_high_precision, param, create_graph=True)
+
+    return hess
+
 
 
 def to_numpy(tensor, flat=False):
@@ -367,8 +405,8 @@ def visualize_weight(model):
     return ims
 
 
-def visualize_embedding(model, p):
-    data = [(i, i) for i in range(p)]
+def visualize_embedding(model, data):
+    #data = [(i, i) for i in range(p)]
     data = torch.tensor(data).to("cuda")
     emb = model.embed(data)
     emb = emb[:, 0, :].detach().cpu().numpy()
@@ -406,6 +444,50 @@ def get_weight_norm(model):
         l2mask_norm.item() / len(param_keys),
     )
 
+def visalize_sample(pred, labels, fn_dict, fn_names, p, data):
+    fig, ax = plt.subplots(1, len(fn_names), figsize=(5*len(fn_names), 5))
+    sample_acc = np.zeros((len(fn_names), p, p))
+    if  len(fn_names) > 1:
+        for i,(a, op, b, _) in enumerate(data):
+            if pred[i] == labels[i]:
+                sample_acc[op-p-1, a, b] = 1
+            else:
+                sample_acc[op-p-1, a, b] -= 1
+        for j, fn_name in enumerate(fn_names):
+            cb = ax[j].imshow(sample_acc[j], cmap="Blues", vmin=-1, vmax=1)
+            ax[j].grid(False)
+            ax[j].set_title(fn_name)
+            ax[j].set_xlabel("b")
+            ax[j].set_ylabel("a")
+        fig.colorbar(cb, ax=ax.ravel().tolist(), pad=0.025)
+    else:
+        for i,(a, op, b, _) in enumerate(data):
+            if pred[i] == labels[i]:
+                sample_acc[op-p-1, a, b] = 1
+            else:
+                sample_acc[op-p-1, a, b] -= 1
+        for j, fn_name in enumerate(fn_names):
+            cb = ax.imshow(sample_acc[j], cmap="Blues", vmin=-1, vmax=1)
+            ax.grid(False)
+            ax.set_title(fn_name)
+            ax.set_xlabel("b")
+            ax.set_ylabel("a")
+        fig.colorbar(cb, ax=ax, pad=0.025)
+    return fig
+
+def visalize_attention(model):
+    attn_matrix = model.get_attention_matrix()
+    num_attn_matrix = len(attn_matrix)
+    num_heads = attn_matrix[0].size(0)
+    fig, ax = plt.subplots(num_heads, num_attn_matrix, figsize=(5*num_attn_matrix, 5))
+    if num_attn_matrix == 1:
+        ax = ax[None, :]
+    for i, attn in enumerate(attn_matrix):
+        for j in range(num_heads):
+            ax[i, j].imshow(attn[j].detach().cpu().numpy(), cmap="Blues")
+            ax[i, j].set_title(f"Layer {i}, Head {j}")
+    plt.tight_layout()
+    return fig
 
 def lp_reg(model, p: int = 2):
     lp_loss = torch.tensor(0.0, requires_grad=True)
@@ -413,3 +495,17 @@ def lp_reg(model, p: int = 2):
         lp_loss = lp_loss + torch.norm(w, p=p)
     lp_loss = lp_loss / len(list(model.parameters()))
     return lp_loss
+
+def model_inter(model1,model2,alpha):
+    model = copy.deepcopy(model1)
+    for name, param in model.named_parameters():
+        param.data = alpha*model1.state_dict()[name].data + (1-alpha)*model2.state_dict()[name].data
+    return model
+
+def get_param(model):
+    param = []
+    for name, p in model.named_parameters():
+        if "mask" not in name:
+            param.append(p.flatten())
+    
+    return torch.cat(param)
