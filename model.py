@@ -138,7 +138,7 @@ class Attention(nn.Module):
         self.register_buffer("weight_maskQ", torch.ones(self.W_Q.shape))
         self.register_buffer("weight_maskV", torch.ones(self.W_V.shape))
         self.register_buffer("weight_maskO", torch.ones(self.W_O.shape))
-        self.register_buffer("atten_matrix", torch.zeros((num_heads, n_ctx, n_ctx)))
+        #self.register_buffer("atten_matrix", torch.zeros((num_heads, n_ctx, n_ctx)))
 
     def forward(self, x):
         W_K = self.W_K * self.weight_maskK
@@ -153,11 +153,10 @@ class Attention(nn.Module):
             1 - self.mask[: x.shape[-2], : x.shape[-2]]
         )
         attn_matrix = F.softmax(attn_scores_masked / np.sqrt(self.d_head), dim=-1)
-        self.set_attention_matrix(attn_matrix)
         z = torch.einsum("biph,biqp->biqh", v, attn_matrix)
         z_flat = einops.rearrange(z, "b i q h -> b q (i h)")
         out = torch.einsum("df,bqf->bqd", W_O, z_flat)
-        return out
+        return out, attn_matrix
 
     def set_weight_ratio(self, weight_ratio):
         self.W_K = nn.Parameter(self.W_K * weight_ratio)
@@ -165,12 +164,12 @@ class Attention(nn.Module):
         self.W_V = nn.Parameter(self.W_V * weight_ratio)
         self.W_O = nn.Parameter(self.W_O * weight_ratio)
 
-    def set_attention_matrix(self, attn_matrix):
-        for i in range(self.atten_matrix.shape[0]):
-            self.atten_matrix[i] = attn_matrix[i].mean(dim=0)
+    #def set_attention_matrix(self, attn_matrix):
+    #    for i in range(self.atten_matrix.shape[0]):
+    #        self.atten_matrix[i] = attn_matrix[i].mean(dim=0)
 
-    def get_attention_matrix(self):
-        return self.atten_matrix
+    #def get_attention_matrix(self):
+    #    return self.atten_matrix
 
 # MLP Layers
 class MLP(nn.Module):
@@ -263,9 +262,8 @@ class TransformerBlock(nn.Module):
         self.hook_resid_post = HookPoint()
 
     def forward(self, x):
-        x = self.hook_resid_mid(
-            x + self.hook_attn_out(self.attn((self.hook_resid_pre(x))))
-        )
+        atten_out, self.atten_matrix = self.attn(self.hook_attn_out(self.hook_resid_pre(x)))
+        x = self.hook_resid_mid(x + atten_out)
         x = self.hook_resid_post(x + self.hook_mlp_out(self.mlp((x))))
         return x
 
@@ -274,7 +272,7 @@ class TransformerBlock(nn.Module):
         self.mlp.set_weight_ratio(weight_ratio)
 
     def get_attention_matrix(self):
-        return self.attn.get_attention_matrix()
+        return self.atten_matrix
 
 
 # Full transformer
@@ -366,6 +364,13 @@ class Transformer(nn.Module):
     
     def get_attention_matrix(self):
         return [block.get_attention_matrix() for block in self.blocks]
+
+    def get_neuron(self, x):
+        x = self.embed(x)
+        for block in self.blocks:
+            x = block(x)
+        return x
+        
 
 
 class OnlyMLP(nn.Module):
@@ -459,6 +464,13 @@ class OnlyMLP(nn.Module):
     def get_embedding(self, x):
         return self.embed(x)
     
+    def get_neuron_activation(self, x):
+        x = self.embed(x)
+        x = self.inproj(x)
+        x = x.sum(dim=1)
+        x = self.act(x)
+        return x
+    
     def pred_from_embedding(self, e):
         x = self.inproj(e)
         x = x.sum(dim=1)
@@ -468,13 +480,6 @@ class OnlyMLP(nn.Module):
             x = self.act(x)
         x = self.outproj(x)
         x = self.unembed(x)
-        return x
-
-    def get_activation(self, x):
-        x = self.embed(x)
-        x = self.inproj(x)
-        x = x.sum(dim=1)
-        x = self.act(x)
         return x
 
 
@@ -521,6 +526,13 @@ class OnlyMLP_onlyadd(nn.Module):
 
     def get_embedding(self, x):
         return self.embed(x)
+
+    def get_neuron_activation(self, x):
+        x = self.embed(x)
+        x = self.inproj(x)
+        x = x.sum(dim=1)
+        x = self.act(x)
+        return x
 
 
 class MnistMLP(nn.Module):

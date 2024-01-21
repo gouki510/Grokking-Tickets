@@ -11,7 +11,7 @@ import seaborn as sns
 sns.set()
 import wandb
 import math
-
+from sklearn.decomposition import PCA #主成分分析器
 import matplotlib.pyplot as plt
 
 # %matplotlib inline
@@ -258,11 +258,16 @@ def full_loss_multi(model, data, fn_dict, p, is_div=False, fn_names=["add", "sub
         fig
     )
 
-def full_loss_mlp(model, data, fn, p, is_div=False):
+def full_loss_mlp(model, data, fn, p, is_div=False, device="cuda", vis=True):
     # Take the final position only
     logits = model(data)
     prob = F.softmax(logits, dim=1)
-    labels = torch.tensor([fn(i, j) for i, j in data]).to("cuda")
+    labels = torch.tensor([fn(i, j) for i, j in data]).to(device)
+    pred = torch.argmax(prob, dim=1)
+    if vis:
+        fig = visalize_sample_v2(pred, labels, ["add"], p, data)
+    else:
+        fig = None
     if is_div:
         accuracy = multiclass_accuracy(
             input=logits, target=labels, num_classes=p * 2, average="micro"
@@ -275,6 +280,7 @@ def full_loss_mlp(model, data, fn, p, is_div=False):
         cross_entropy_high_precision(logits, labels),
         accuracy,
         torch.mean(torch.gather(prob, index=labels[:, None], dim=-1)),
+        fig
     )
 
 def calc_hess(model, data, fn, p, is_div=False):
@@ -418,6 +424,44 @@ def visualize_embedding(model, data):
         plt.annotate(f"{i}", (emb[ind, 0], emb[ind, 1]), ha="center")
     return wandb.Image(img)
 
+@torch.no_grad()
+def visualize_neuron_activation(model, data):
+    #data = [(i, i) for i in range(p)]
+    fig = plt.figure(figsize=(10,10))
+    data = torch.tensor(data).to("cuda")
+    act = model.get_neuron_activation(data)
+    act = act.detach().cpu().numpy()
+    max_act = np.max(act) + np.max(act)*0.1
+    act_dict = {}  
+    for ind, (i, j) in enumerate(data):
+        act_dict[i] = act[ind, :]
+        plt.scatter(act[ind, 0], act[ind, 1], c="b", alpha=0.5, s=150)
+        plt.plot([0,act[ind, 0]], [0,act[ind, 1]], c="b", alpha=0.5, linewidth=0.5)
+        plt.annotate(f"{(i.item(),j.item())}", (act[ind, 0], act[ind, 1]), ha="center")
+    plt.xlim(-max_act,max_act)
+    plt.ylim(-max_act,max_act)        
+    return fig
+
+def visualize_neuron_activation_v2(model, data):
+    #data = [(i, i) for i in range(p)]
+    fig = plt.figure(figsize=(10,10))
+    data = torch.tensor(data).to("cuda")
+    act = model.get_neuron_activation(data)
+    act = act.detach().cpu().numpy()
+    #主成分分析の実行
+    pca = PCA()
+    pca.fit(act)
+    # データを主成分空間に写像
+    feature = pca.transform(act)
+    act = feature
+    max_act = np.max(act) + np.max(act)*0.1
+    for ind, (i, j) in enumerate(data):
+        plt.scatter(act[ind, 0], act[ind, 1], c="b", alpha=0.5, s=150)
+        plt.plot([0,act[ind, 0]], [0,act[ind, 1]], c="b", alpha=0.5, linewidth=0.5)
+        plt.annotate(f"{(i.item(),j.item())}", (act[ind, 0], act[ind, 1]), ha="center")
+    plt.xlim(-max_act,max_act)
+    plt.ylim(-max_act,max_act)        
+    return fig
 
 def get_weight_norm(model):
     weights = {}
@@ -443,6 +487,12 @@ def get_weight_norm(model):
         l1mask_norm.item() / len(param_keys),
         l2mask_norm.item() / len(param_keys),
     )
+    
+def get_weight_sparsity(model, k=0.1):
+    total_weight = torch.cat([model.state_dict()["embed.W_E"].flatten(),model.state_dict()["inproj.W"].flatten(),model.state_dict()["outproj.W"].flatten(),model.state_dict()["unembed.W_U"].flatten()], dim=0)
+    weight_epsilon = total_weight.abs().max().item()*k
+    weight_sparsity = torch.sum(total_weight.abs() < weight_epsilon).item()/total_weight.numel()
+    return weight_sparsity
 
 def visalize_sample(pred, labels, fn_dict, fn_names, p, data):
     fig, ax = plt.subplots(1, len(fn_names), figsize=(5*len(fn_names), 5))
@@ -475,18 +525,62 @@ def visalize_sample(pred, labels, fn_dict, fn_names, p, data):
         fig.colorbar(cb, ax=ax, pad=0.025)
     return fig
 
+def visalize_sample_v2(pred, labels, fn_names, p, data):
+    fig, ax = plt.subplots(1, len(fn_names), figsize=(5*len(fn_names), 5))
+    sample_acc = np.zeros((len(fn_names), p, p))
+    if  len(fn_names) > 1:
+        for i,(a, b) in enumerate(data):
+            if pred[i] == labels[i]:
+                sample_acc[0, a, b] = 1
+            else:
+                sample_acc[0, a, b] -= 1
+        for j, fn_name in enumerate(fn_names):
+            cb = ax[j].imshow(sample_acc[j], cmap="Blues", vmin=-1, vmax=1)
+            ax[j].grid(False)
+            ax[j].set_title(fn_name)
+            ax[j].set_xlabel("b")
+            ax[j].set_ylabel("a")
+        fig.colorbar(cb, ax=ax.ravel().tolist(), pad=0.025)
+    else:
+        for i,(a, b ) in enumerate(data):
+            if pred[i] == labels[i]:
+                sample_acc[0, a, b] = 1
+            else:
+                sample_acc[0, a, b] -= 1
+        for j, fn_name in enumerate(fn_names):
+            cb = ax.imshow(sample_acc[j], cmap="Blues", vmin=-1, vmax=1)
+            ax.grid(False)
+            ax.set_title(fn_name)
+            ax.set_xlabel("b")
+            ax.set_ylabel("a")
+        fig.colorbar(cb, ax=ax, pad=0.025)
+    return fig
+
+@torch.no_grad()
 def visalize_attention(model):
     attn_matrix = model.get_attention_matrix()
-    num_attn_matrix = len(attn_matrix)
-    num_heads = attn_matrix[0].size(0)
-    fig, ax = plt.subplots(num_heads, num_attn_matrix, figsize=(5*num_attn_matrix, 5))
-    if num_attn_matrix == 1:
+    num_layer = len(attn_matrix)
+    num_heads = attn_matrix[0].size(1)
+    fig, ax = plt.subplots(num_heads, num_layer, figsize=(5*num_layer, 5))
+    if num_layer == 1 and num_heads == 1:
+        for i, attn in enumerate(attn_matrix):
+            for j in range(num_heads):
+                ax.imshow(attn[j].mean(dim=0).detach().cpu().numpy(), cmap="Blues")
+                ax.set_title(f"Layer {i}, Head {j}")
+    elif num_layer == 1:
         ax = ax[None, :]
-    for i, attn in enumerate(attn_matrix):
-        for j in range(num_heads):
-            ax[i, j].imshow(attn[j].detach().cpu().numpy(), cmap="Blues")
-            ax[i, j].set_title(f"Layer {i}, Head {j}")
+        for i, attn in enumerate(attn_matrix):
+            for j in range(num_heads):
+                ax[i, j].imshow(attn[j].mean(dim=0).detach().cpu().numpy(), cmap="Blues")
+                ax[i, j].set_title(f"Layer {i}, Head {j}")
+    elif num_heads == 1:
+        ax = ax[:, None]
+        for i, attn in enumerate(attn_matrix):
+            for j in range(num_heads):
+                ax[i, j].imshow(attn[j].mean(dim=0).detach().cpu().numpy(), cmap="Blues")
+                ax[i, j].set_title(f"Layer {i}, Head {j}")
     plt.tight_layout()
+    #plt.colorbar()
     return fig
 
 def lp_reg(model, p: int = 2):
@@ -509,3 +603,33 @@ def get_param(model):
             param.append(p.flatten())
     
     return torch.cat(param)
+
+def get_new_grads(model, x,y,current_example_index):
+    '''
+    Args 
+        model: the model that we want to get the gradients from
+        x: the input data
+        y: the labels
+        current_example_index: the index of the example that we want to flip
+    Returns
+        grads_list: a dictionary of the gradients of the model
+        final_preds: the final predictions of the model
+    '''
+    grads_list = {}
+
+    final_preds = model(x)
+
+    loss = nn.CrossEntropyLoss(reduction = 'none')(final_preds, y)
+    batch_size = y.shape[0]
+    #for the example that we want to flip, we must reverse the loss while maintaing the population loss
+    loss[current_example_index] *= -1*batch_size
+    loss = loss.mean()
+    loss.backward()
+
+    for name, param in (model.named_parameters()):
+        grads_list[name] = copy.deepcopy(param.grad.detach())
+
+    # ipdb.set_trace()
+    model.zero_grad()
+
+    return grads_list, final_preds.detach()

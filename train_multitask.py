@@ -11,7 +11,7 @@ from typing import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
 from model import Transformer, OnlyMLP, OnlyMLP_onlyadd, SLTHMLP
-from data_module import gen_train_test, train_test_split, gen_train_test_multi
+from data_module import gen_train_test, train_test_split, gen_train_test_multi, gen_train_test_multi_v2
 from utils import (
     visualize_weight_distribution,
     visualize_weight,
@@ -37,7 +37,7 @@ def main(config):
     wandb.init(project="grokking_multitask", name=config.exp_name, config=config)
     if config.model == "transformer":
         model = Transformer(
-            num_layers=config.num_layers,
+            num_layers=config.num_layers,           
             d_vocab=config.d_vocab,
             d_model=config.d_model,
             d_mlp=config.d_mlp,
@@ -89,7 +89,7 @@ def main(config):
     )
     # scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
     run_name = f"{config.exp_name}"
-    train, test = gen_train_test_multi(
+    train, test = gen_train_test_multi_v2(
         config.frac_train,
         config.p,
         seed=config.seed,
@@ -114,7 +114,7 @@ def main(config):
                 train_loss, train_acc, train_prob, fig_train = full_loss_multi(
                     model, train, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
                 )
-                train_loss += config.lp_alpha*lp_reg(model, config.lp)
+                #train_loss += config.lp_alpha*lp_reg(model, config.lp)
                 test_loss, test_acc, test_prob, fig_test = full_loss_multi(
                     model, test, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
                 )
@@ -184,10 +184,8 @@ def main(config):
                 if config.model == "transformer":
                     wandb.log({"fig_train_sample": wandb.Image(fig_train)})
                     wandb.log({"fig_test_sample": wandb.Image(fig_test)})
-                    plt.close()
-                    plt.cla()
                     attn_img = visalize_attention(model)
-                    wandb.log({"attention": attn_img})
+                    wandb.log({"attention": wandb.Image(attn_img)})
                     plt.close()
                     plt.cla()
 

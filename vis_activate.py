@@ -132,6 +132,10 @@ class Exp(object):
         else:
             self.batch_size = self.p**2
 
+def jaccard_distance(x, y):
+    inter = torch.where(x+y==2, 1, 0).sum()
+    union = torch.where(x+y==0, 0, 1).sum()
+    return 1 - inter/union
 
 def cross_entropy(labels, logits, num_neuron=48):
     mean = 0
@@ -232,6 +236,34 @@ def frec(weight_path, config, output_file, output_file2, is_mask=False):
 
     plt.close()
     return base_init, img, img2
+
+def plot_acc(weight_path, config, output_file, output_file2, is_mask=False):
+    path  = "/home/exp0_mlp_test.csv"
+
+    df1 = pd.read_csv(path)
+    print(jaccard_dis.numpy()[-1])
+    epochs = np.arange(2000, (len(jaccard_dis.numpy()[-1])+1)*2000, 2000)
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ln1=ax1.plot(df1["Step"], df1["Grouped runs - test_acc"],"C0", label="Base model test accuracy")
+
+
+    ax2 = ax1.twinx()
+    ln2=ax2.plot(epochs,jaccard_dis.numpy()[-1],"C1",label="jaccard distance" )
+
+    h1, l1 = ax1.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
+    ax1.legend(h1+h2, l1+l2, loc='upper left', bbox_to_anchor=(0.05, 0.95),fontsize=15)
+
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Accuracy')
+    ax2.set_ylabel('Jaccard distance')
+    ax1.set_ylim([0.0, 1.0])
+    ax2.set_ylim([0.0, 1.0])
+    ax1.grid(False)
+    ax2.grid(False)
+
 
 
 def main(

@@ -315,27 +315,10 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--seed", type=int, default=0, help="seed")
     parser.add_argument("-e", "--epoch", default="final", help="checkpoint epoch")
     parser.add_argument("-m", "--pruner", type=str, default="mag", help="pruner")
+    parser.add_argument("-w", "--weight_path", type=str, default="add", help="fn_name")
     config = Exp()
     config.sparsity = parser.parse_args().prune_rate
     config.seed = parser.parse_args().seed
     config.checkpoint = parser.parse_args().epoch
     config.pruner = parser.parse_args().pruner
-    for key, value in config.fns_dict.items():
-        config.fn_name = key
-        config.fn = config.fns_dict[config.fn_name]
-        print("-"*100)
-        print(f"Running {key} task")
-        print("-"*100) 
-        config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
-            {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
-            {config.weight_scale}WS_1seed"
-        config.weight_path = config.pre_root / config.exp_name / f"{config.checkpoint}.pth"
-        config.weight_path = "0927/exp1/mlp/mlp_0L_48D_67P_        0.4F_0.001LR_1WD_TrueS_        1WS_2seed/final.pth"
-
-
-        config.init_weight_path = config.pre_root / config.exp_name / f"init.pth"
-        config.init_weight_path = "0927/exp1/mlp/mlp_0L_48D_67P_        0.4F_0.001LR_1WD_TrueS_        1WS_2seed/init.pth"
-        config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
-            {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
-            {config.weight_scale}WS_{config.sparsity}_sparsity_{config.seed}seed_{config.checkpoint}epoch_{config.pruner}_pruner_{config.fn_name}task"
-        main(config)
+    main(config)

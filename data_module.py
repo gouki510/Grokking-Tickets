@@ -27,7 +27,7 @@ def gen_train_test_multi(frac_train, num, seed=0, is_symmetric_input=False, fn_n
     pairs = []
     for fn_idx in range(len(fn_names)):
         if is_symmetric_input:
-            pairs += [(i, p+fn_idx+1, j, p) for i in range(num) for j in range(num) if i >= j]            
+            pairs += [(i, p+fn_idx+1, j, p) for i in range(num) for j in range(num) if i <= j]            
         else:
             pairs += [(i, p+fn_idx+1, j, p) for i in range(num) for j in range(num)]
     random.seed(seed)
@@ -35,6 +35,24 @@ def gen_train_test_multi(frac_train, num, seed=0, is_symmetric_input=False, fn_n
     div = int(frac_train * len(pairs))
     train_data = pairs[:div]
     test_data = pairs[div:]
+    return train_data, test_data
+
+def gen_train_test_multi_v2(frac_train, num, seed=0, is_symmetric_input=False, fn_names=["add","substract"], p=67):
+    # Generate train and test split
+    train_data = []
+    test_data = []
+    pairs = []
+    for fn_idx in range(len(fn_names)):
+        if is_symmetric_input:
+            pair = [(i, p+fn_idx+1, j, p) for i in range(num) for j in range(num) if i <= j]            
+        else:
+            pair = [(i, p+fn_idx+1, j, p) for i in range(num) for j in range(num)]
+        pairs.append(pair)
+    train_idx = random.sample(range(len(pair)), int(frac_train*len(pair)))
+    test_idx = list(set(range(len(pair)))-set(train_idx))
+    for fn_idx in range(len(fn_names)):
+        train_data += [pairs[fn_idx][idx] for idx in train_idx]
+        test_data += [pairs[fn_idx][idx] for idx in test_idx]
     return train_data, test_data
 
 

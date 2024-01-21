@@ -23,6 +23,9 @@ from utils import (
     get_weight_norm,
     lp_reg,
     get_param,
+    visualize_neuron_activation,
+    visualize_neuron_activation_v2,
+    get_weight_sparsity
 )
 from config.config import Exp
 import warnings
@@ -32,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="grokking_multitask", name=config.exp_name, config=config)
+    wandb.init(project="grokking_width", name=config.exp_name, config=config)
     if config.model == "transformer":
         model = Transformer(
             num_layers=config.num_layers,
@@ -79,21 +82,27 @@ def main(config):
             prune_rate=config.prune_rate,
         )
     model.to("cuda")
-    optimizer = optim.AdamW(
-        model.parameters(),
-        lr=config.lr,
-        weight_decay=config.weight_decay,
-        betas=(0.9, 0.98),
-    )
+    if config.optimizer == "adam":
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config.lr,
+            weight_decay=config.weight_decay,
+            betas=(0.9, 0.98),
+        )
+    elif config.optimizer == "sgd":
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=config.lr,
+            momentum=config.momentum,
+            weight_decay=config.weight_decay,
+        )
     # scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
-    run_name = f"{config.exp_name}"
-    train, test = gen_train_test_multi(
+    run_name = config.exp_name
+    train, test = gen_train_test(
         config.frac_train,
         config.d_vocab,
         seed=config.seed,
         is_symmetric_input=config.is_symmetric_input,
-        fn_names=config.fn_name,
-        p=config.p
     )
     if config.save_models:
         os.makedirs(config.root / run_name, exist_ok=True)
@@ -102,22 +111,23 @@ def main(config):
             "train_data": train,
             "test_data": test,
         }
+        print(f"Saved model to {config.root/run_name/'init.pth'}")
         torch.save(save_dict, config.root / run_name / "init.pth")
     train_losses = []
     test_losses = []
     with tqdm(range(config.num_epochs)) as pbar:
-        pbar.set_description(f"")
+        pbar.set_description()
         for epoch in pbar:
             if config.model == "transformer":
-                train_loss, train_acc, train_prob = full_loss_multi(
+                train_loss, train_acc, train_prob = full_loss(
                     model, train, fn=config.fn, p=config.p, is_div=config.is_div
                 )
                 train_loss += config.lp_alpha*lp_reg(model, config.lp)
-                test_loss, test_acc, test_prob = full_loss_multi(
+                test_loss, test_acc, test_prob = full_loss(
                     model, test, fn=config.fn, p=config.p, is_div=config.is_div
                 )
             elif config.model == "mlp":
-                train_loss, train_acc, train_prob = full_loss_mlp(
+                train_loss, train_acc, train_prob, train_sample = full_loss_mlp(
                     model, train, config.fn, config.p, is_div=config.is_div
                 )
                 """params = model.parameters()#get_param(model)
@@ -130,10 +140,10 @@ def main(config):
                             params = model.parameters()
                             hess_train += torch.autograd.grad(grad, params, create_graph=True)[k][i, j] 
                 hess_train = hess_train / (env_grads[0].size(0)*env_grads[0].size(1)*len(env_grads))
-            """
+                """
 
                 train_loss += config.lp_alpha*lp_reg(model, config.lp)
-                test_loss, test_acc, test_prob = full_loss_mlp(
+                test_loss, test_acc, test_prob, test_sample = full_loss_mlp(
                     model, test, config.fn, config.p, is_div=config.is_div
                 )
             pbar.set_postfix(
@@ -145,6 +155,7 @@ def main(config):
                 )
             )
             l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
+            weight_sparsity = get_weight_sparsity(model, k=config.sparse_k)
             wandb.log(
                 {
                     "epoch": epoch,
@@ -159,6 +170,7 @@ def main(config):
                     "l1mask_norm": l1mask_norm,
                     "l2mask_norm": l2mask_norm,
                     #"hess_train": hess_train,
+                    "weight_sparsity": weight_sparsity,
                 }
             )
             train_loss.backward()
@@ -168,15 +180,21 @@ def main(config):
             if test_loss.item() < config.stopping_thresh:
                 break
             if (config.save_models) and (epoch % config.save_every == 0):
-                fig = visualize_weight_distribution(model)
-                wandb.log({"weight_distribution": fig})
+                #fig = visualize_weight_distribution(model)
+                #wandb.log({"weight_distribution": fig})
+                #plt.close()
+                #ims = visualize_weight(model)
+                #wandb.log({"weight": ims})
+                #plt.close()
+                #emb_img = visualize_embedding(model, p=config.p)
+                #wandb.log({"embedding": emb_img})
+                #plt.close()
+                wandb.log({"train_sample": train_sample})
+                wandb.log({"test_sample": test_sample})
                 plt.close()
-                ims = visualize_weight(model)
-                wandb.log({"weight": ims})
-                plt.close()
-                emb_img = visualize_embedding(model, p=config.p)
-                wandb.log({"embedding": emb_img})
-                plt.close()
+                # if config.model == "mlp":
+                #     act_img = visualize_neuron_activation(model, train)
+                #     wandb.log({"neuron activation": wandb.Image(act_img)})
 
                 if test_loss.item() < config.stopping_thresh:
                     break
@@ -188,7 +206,7 @@ def main(config):
                     "test_loss": test_loss,
                     "epoch": epoch,
                 }
-                torch.save(save_dict, config.root / run_name / f"{epoch}.pth")
+                torch.save(save_dict, config.root / run_name / '{epoch}.pth'.format(epoch=epoch))
                 # print(f"Saved model to {root/run_name/f'{epoch}.pth'}")
         if not config.save_models:
             os.mkdir(config.root / run_name)
@@ -202,22 +220,24 @@ def main(config):
             "test_losses": test_losses,
             "epoch": epoch,
         }
-        torch.save(save_dict, config.root / run_name / f"final.pth")
+        torch.save(save_dict, config.root / run_name / "final.pth")
         wandb.finish()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=0, help="seed")
+    parser.add_argument("-o", "--optimizer", type=str, default="sgd", help="optimizer")
+    parser.add_argument("-w", "--weight_decay", type=float, default=1, help="weight_decay")
+    parser.add_argument("-l", "--lr", type=float, default=1e-2, help="lr")
+    parser.add_argument("-m", "--momentum", type=float, default=0.9, help="momentum")
+    parser.add_argument( "--width", type=int, default=48, help="width")
     config = Exp()
-    for key, value in config.fns_dict.items():
-        config.fn_name = key
-        print("-"*100)
-        print(f"Running {key} task")
-        print("-"*100)
-        config.seed = parser.parse_args().seed
-        config.exp_name = f"{config.model}_{config.num_layers}L_{config.d_model}D_{config.p}P_\
-            {config.frac_train}F_{config.lr}LR_{config.weight_decay}WD_{config.is_symmetric_input}S_\
-            {config.weight_scale}WS_{config.fn_name}task_{config.lp}LP_{config.lp_alpha}LPA"
-        config.fn = config.fns_dict[config.fn_name]
-        main(config)
+    config.seed = parser.parse_args().seed
+    config.optimizer = parser.parse_args().optimizer
+    config.weight_decay = parser.parse_args().weight_decay
+    config.lr = parser.parse_args().lr
+    config.momentum = parser.parse_args().momentum
+    config.d_model = parser.parse_args().width
+    config.exp_name = "WIDTH_{d_model}".format(d_model=config.d_model)
+    main(config)
