@@ -10,7 +10,7 @@ from utils import HookPoint
 import seaborn as sns
 
 sns.set()
-from utils import GetSubnet, SupermaskLinear, SupermaskEmbedd
+from utils import GetSubnet, SupermaskLinear, SupermaskEmbedd, SupermaskConv
 
 
 # Define network architecture
@@ -451,8 +451,8 @@ class OnlyMLP(nn.Module):
 
     def forward(self, x):
         x = self.embed(x)
-        x = self.inproj(x)
         x = x.sum(dim=1)
+        x = self.inproj(x)
         x = self.act(x)
         for mlp in self.mlps:
             x = mlp(x)
@@ -585,20 +585,28 @@ class SLTHMLP(nn.Module):
         use_ln=True,
         weight_scale=1,
         prune_rate=0.4,
+        weight_learning=True,
+        img_size=None,
     ):
         super().__init__()
         # self.model = [model]
-        self.embbed = SupermaskEmbedd(d_vocab, d_emb, weight_scale=weight_scale)
+        self.img_size = img_size
+        if not img_size is None:
+            d_input = img_size[0] * img_size[1] * img_size[2]
+            self.embbed = SupermaskLinear(in_features=d_input, out_features=d_emb, weight_scale=weight_scale, weight_learning=weight_learning)
+        else:
+            d_input = d_vocab
+            self.embbed = SupermaskEmbedd(in_features=d_input, out_features=d_emb, weight_scale=weight_scale, weight_learning=weight_learning)
         self.embbed.set_prune_rate(prune_rate)
-        self.inproj = SupermaskLinear(d_emb, d_model, weight_scale=weight_scale)
+        self.inproj = SupermaskLinear(in_features=d_emb, out_features=d_model,  weight_scale=weight_scale, weight_learning=weight_learning)
         self.inproj.set_prune_rate(prune_rate)
-        self.outproj = SupermaskLinear(d_model, d_emb, weight_scale=weight_scale)
+        self.outproj = SupermaskLinear(in_features=d_model, out_features=d_emb,  weight_scale=weight_scale, weight_learning=weight_learning)
         self.outproj.set_prune_rate(prune_rate)
-        self.unembed = SupermaskLinear(d_emb, d_vocab, weight_scale=weight_scale)
+        self.unembed = SupermaskLinear(in_features=d_emb, out_features=d_vocab,  weight_scale=weight_scale, weight_learning=weight_learning)
         self.unembed.set_prune_rate(prune_rate)
         self.mlps = nn.ModuleList(
             [
-                SupermaskLinear(d_model, d_model, weight_scale=weight_scale)
+                SupermaskLinear(in_features=d_emb, out_features=d_vocab,  weight_scale=weight_scale, weight_learning=weight_learning)
                 for i in range(num_layers)
             ]
         )
@@ -609,10 +617,77 @@ class SLTHMLP(nn.Module):
         self.act = nn.ReLU() if act_type == "ReLU" else nn.GELU()
 
     def forward(self, x):
+        x = self.embbed(x)
+        self.act(x)
+        if len(x.shape) == 3: # [B, T, D]
+            x = x.sum(dim=1)
+        if self.img_size is None:
+            x = self.inproj(x)
+            x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        if self.img_size is None:
+            x = self.outproj(x)
+            self.act(x)
+        x = self.unembed(x)
+        return x
+    
+class SLTHCNN(nn.Module):
+    def __init__(
+        self,
+        num_layers,
+        d_vocab, # d_class
+        d_model,
+        d_emb,
+        act_type,
+        use_ln=True,
+        weight_scale=1,
+        prune_rate=0.4,
+        weight_learning=True,
+        img_size=None, # [H,W,C]
+        kernel_size=7,
+    ):
+        super().__init__()
+        # self.model = [model]
+        if not img_size is None:
+            in_channels = img_size[2]
+            self.embbed = SupermaskConv(in_channels=in_channels, out_channels=d_emb,kernel_size=kernel_size, weight_scale=weight_scale, weight_learning=weight_learning)
+        else:
+            d_input = d_vocab
+            self.embbed = SupermaskEmbedd(in_features=d_input, out_features=d_emb,kernel_size=kernel_size, weight_scale=weight_scale, weight_learning=weight_learning)
+        self.embbed.set_prune_rate(prune_rate)
+        self.inproj = SupermaskConv(in_channels=d_emb, out_channels=d_model, kernel_size=kernel_size, weight_scale=weight_scale, weight_learning=weight_learning)
+        self.inproj.set_prune_rate(prune_rate)
+        self.outproj = SupermaskConv(in_channels=d_model, out_channels=d_emb, kernel_size=kernel_size, weight_scale=weight_scale, weight_learning=weight_learning)
+        self.outproj.set_prune_rate(prune_rate)
+        self.unembed = SupermaskLinear(in_features=d_emb*10*10, out_features=d_vocab,  weight_scale=weight_scale, weight_learning=weight_learning)
+        self.unembed.set_prune_rate(prune_rate)
+        self.mlps = nn.ModuleList(
+            [
+                SupermaskConv(in_channels=d_model, out_channels=d_model, kernel_size=kernel_size,  weight_scale=weight_scale, weight_learning=weight_learning)
+                for i in range(num_layers)
+            ]
+        )
+        for mlp in self.mlps:
+            mlp.set_prune_rate(prune_rate)
+        self.act_type = act_type
+        assert act_type in ["ReLU", "GeLU"]
+        self.act = nn.ReLU() if act_type == "ReLU" else nn.GELU()
+
+    def forward(self, x):
+        x = self.embbed(x)
+        x = self.act(x)
+        if len(x.shape) == 3: # [B, T, D]
+            x = x.sum(dim=1)
         x = self.inproj(x)
         x = self.act(x)
         for mlp in self.mlps:
             x = mlp(x)
             x = self.act(x)
         x = self.outproj(x)
+        x = self.act(x)
+        x = x.view(x.shape[0], -1)
+        x = self.unembed(x)
         return x
+    

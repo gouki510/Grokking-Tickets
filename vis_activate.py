@@ -208,7 +208,7 @@ def frec(weight_path, config, output_file, output_file2, is_mask=False):
     dt = 1 / f_s  # サンプリング周期 dt[s]
     N = int(f_s * t_fin)  # サンプル数 [個]
     fig, axis = plt.subplots(8, 6, figsize=(24, 18))
-    base_init = []
+    l1_init = []
     for i_neuron in range(num_neuron):
         y = W_in[
             i_neuron
@@ -220,9 +220,9 @@ def frec(weight_path, config, output_file, output_file2, is_mask=False):
         axis[i_neuron % 8][i_neuron // 8].plot(
             freq[1 : int(N / 2)], Amp[1 : int(N / 2)]
         )  # A-f グラフのプロット
-        # base_init.append(nn.Softmax(torch.from_numpy(Amp[1:int(N/2)]))
+        # l1_init.append(nn.Softmax(torch.from_numpy(Amp[1:int(N/2)]))
         if (Amp[1 : int(N / 2)]).sum() > 0:
-            base_init.append((Amp[1 : int(N / 2)]) / (Amp[1 : int(N / 2)]).sum())
+            l1_init.append((Amp[1 : int(N / 2)]) / (Amp[1 : int(N / 2)]).sum())
     plt.savefig(output_file2, bbox_inches="tight", pad_inches=0.05)
     buf = io.BytesIO()  # インメモリのバイナリストリームを作成
     fig.savefig(buf, format="png", dpi=180)  # matplotlibから出力される画像のバイナリデータをメモリに格納する.
@@ -235,7 +235,7 @@ def frec(weight_path, config, output_file, output_file2, is_mask=False):
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)  # cv2.imread() はBGR形式で読み込むのでRGBにする.
 
     plt.close()
-    return base_init, img, img2
+    return l1_init, img, img2
 
 def plot_acc(weight_path, config, output_file, output_file2, is_mask=False):
     path  = "/home/exp0_mlp_test.csv"
@@ -246,7 +246,7 @@ def plot_acc(weight_path, config, output_file, output_file2, is_mask=False):
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
-    ln1=ax1.plot(df1["Step"], df1["Grouped runs - test_acc"],"C0", label="Base model test accuracy")
+    ln1=ax1.plot(df1["Step"], df1["Grouped runs - test_acc"],"C0", label="l1 model test accuracy")
 
 
     ax2 = ax1.twinx()
@@ -267,25 +267,25 @@ def plot_acc(weight_path, config, output_file, output_file2, is_mask=False):
 
 
 def main(
-    grok_weight_path=None, ticket_folder=None, weight_folder=None, output_folder=None
+    ticket_folder=None, weight_folder=None, output_folder=None
 ):
     weight_paths = glob(os.path.join(weight_folder, "*.pth"))
     tickets_weight_paths = glob(os.path.join(ticket_folder, "*.pth"))
     loss = torch.nn.CrossEntropyLoss(reduction="mean")
     os.makedirs(output_folder, exist_ok=True)
     config = Exp()
-    grok_base_init, _, _ = frec(
-        grok_weight_path,
-        config,
-        os.path.join(output_folder, "grok.png"),
-        os.path.join(output_folder, "grok_frec.png"),
-    )
+    # grok_l1_init, _, _ = frec(
+    #     grok_weight_path,
+    #     config,
+    #     os.path.join(output_folder, "grok.png"),
+    #     os.path.join(output_folder, "grok_frec.png"),
+    # )
     i = 0
     epochs = []
-    base_losses = []
+    l1_losses = []
     ticket_losses = []
-    base_img1s = []
-    base_img2s = []
+    l1_img1s = []
+    l1_img2s = []
     ticket_img1s = []
     ticket_img2s = []
 
@@ -295,39 +295,42 @@ def main(
             continue
         print(f"epoch:{epoch}")
         epoch = i * 2000
-        base_init, base_img1, base_img2 = frec(
+        l1_init, l1_img1, l1_img2 = frec(
             weight_path,
             config,
-            os.path.join(output_folder, f"base_{epoch}.png"),
-            os.path.join(output_folder, f"base_{epoch}_frec.png"),
+            os.path.join(output_folder, f"l1_{epoch}.pdf"),
+            os.path.join(output_folder, f"l1_{epoch}_frec.pdf"),
         )
-        base_img1s.append(base_img1)
-        base_img2s.append(base_img2)
-        # print(f"base_init:{base_init}")
+        l1_img1s.append(l1_img1)
+        l1_img2s.append(l1_img2)
+        # print(f"l1_init:{l1_init}")
         ticket_init, ticket_img1, ticket_img2 = frec(
             ticket_weight_path,
             config,
-            os.path.join(output_folder, f"ticket_{epoch}.png"),
-            os.path.join(output_folder, f"ticket_{epoch}_frec.png"),
+            os.path.join(output_folder, f"ticket_{epoch}.pdf"),
+            os.path.join(output_folder, f"ticket_{epoch}_frec.pdf"),
             is_mask=True,
         )
         ticket_img1s.append(ticket_img1)
         ticket_img2s.append(ticket_img2)
         i += 1
         entropy = loss(
-            torch.from_numpy(np.array(base_init)), torch.from_numpy(np.array(base_init))
+            torch.from_numpy(np.array(l1_init)), torch.from_numpy(np.array(l1_init))
         )
         entropy2 = loss(
             torch.from_numpy(np.array(ticket_init)),
             torch.from_numpy(np.array(ticket_init)),
         )
-        print(f"base_entropy:{entropy}, tikcet_entropy:{entropy2}")
+        print(f"l1_entropy:{entropy}, tikcet_entropy:{entropy2}")
         epochs.append(epoch)
-        base_losses.append(entropy.item())
+        l1_losses.append(entropy.item())
         ticket_losses.append(entropy2.item())
 
         fig = plt.figure(figsize=(10, 10))
-        plt.plot(epochs, base_losses, label="Base Model")
+        np.savez(
+            os.path.join(output_folder, f"l1_{epoch}.npz"), l1_losses = l1_losses, ticket_losses = ticket_losses
+        )
+        plt.plot(epochs, l1_losses, label="l1 Model")
         plt.plot(epochs, ticket_losses, label="Grokking ticket")
         plt.xlabel("Epoch")
         plt.ylabel("Entropy")
@@ -338,26 +341,23 @@ def main(
             pad_inches=0.05,
         )
         plt.close()
-    show_animiation(base_img1s, os.path.join(output_folder, "base"))
-    show_animiation(base_img2s, os.path.join(output_folder, "base_frec"))
+    show_animiation(l1_img1s, os.path.join(output_folder, "l1"))
+    show_animiation(l1_img2s, os.path.join(output_folder, "l1_frec"))
     show_animiation(ticket_img1s, os.path.join(output_folder, "ticket"))
     show_animiation(ticket_img2s, os.path.join(output_folder, "ticket_frec"))
 
 
 if __name__ == "__main__":
     argparse = argparse.ArgumentParser()
-    argparse.add_argument("--grok_weight_path", type=str, default=None)
     argparse.add_argument("--weight_folder", type=str, default=None)
     argparse.add_argument("--ticket_folder", type=str, default=None)
     argparse.add_argument("--output_folder", type=str, default=None)
 
     args = argparse.parse_args()
-    grok_weight_path = args.grok_weight_path
     weight_folder = args.weight_folder
     ticket_folder = args.ticket_folder
     output_folder = args.output_folder
     main(
-        grok_weight_path=grok_weight_path,
         ticket_folder=ticket_folder,
         weight_folder=weight_folder,
         output_folder=output_folder,

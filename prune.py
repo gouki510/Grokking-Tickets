@@ -106,7 +106,7 @@ def prune_loop(
 
 def main(config):
     wandb.init(
-        project="grokking_random_neuron", name=config.exp_name, config=config
+        project="grokking_ICML_rebuttal", name=config.exp_name, config=config
     )
     if config.model == "transformer":
         model = Transformer(
@@ -226,10 +226,10 @@ def main(config):
                     model, test, fn=config.fn, p=config.p, is_div=config.is_div
                 )
             elif config.model == "mlp":
-                train_loss, train_acc, train_prob = full_loss_mlp(
+                train_loss, train_acc, train_prob, _ = full_loss_mlp(
                     model, train, config.fn, config.p, is_div=config.is_div
                 )
-                test_loss, test_acc, test_prob = full_loss_mlp(
+                test_loss, test_acc, test_prob, _  = full_loss_mlp(
                     model, test, config.fn, config.p, is_div=config.is_div
                 )
             pbar.set_postfix(
@@ -275,9 +275,9 @@ def main(config):
                 ims = visualize_weight(model)
                 wandb.log({"weight": ims})
                 plt.close()
-                emb_img = visualize_embedding(model, p=config.p)
-                wandb.log({"embedding": emb_img})
-                plt.close()
+                # emb_img = visualize_embedding(model, p=config.p)
+                # wandb.log({"embedding": emb_img})
+                # plt.close()
 
                 if test_loss.item() < config.stopping_thresh:
                     break

@@ -122,7 +122,7 @@ class MNISTDataModule:
             self.test_dataset, batch_size=num_batch, shuffle=False
         )
         self.test_dataloader = torch.utils.data.DataLoader(
-            self.train_dataset, batch_size=10000, shuffle=False
+            self.train_dataset, batch_size=num_batch, shuffle=False
         )
 
     def get_dataloader(self):

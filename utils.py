@@ -89,7 +89,7 @@ class GetSubnet(autograd.Function):
 
 
 class SupermaskConv(nn.Conv2d):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, weight_scale , weight_learning, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # initialize the scores
@@ -99,12 +99,16 @@ class SupermaskConv(nn.Conv2d):
         nn.init.kaiming_uniform_(self.scores, a=math.sqrt(5))
 
         # NOTE: initialize the weights like this.
-        nn.init.kaiming_normal_(
-            self.weight, mode="fan_in", nonlinearity="leaky_relu", a=0.2
-        )
+        torch.nn.init.normal_(self.weight, mean=0, std=weight_scale / np.sqrt(self.in_features))
+        # torch.nn.init.normal_(self.weight, mean=0, std=weight_scale / np.sqrt(self.in_channels * self.kernel_size[0] * self.kernel_size[1]))
+        # self.weight.data *= weight_scale
 
+        self.weight_learning = weight_learning
         # NOTE: turn the gradient on the weights off
-        self.weight.requires_grad = False
+        if self.weight_learning :
+            self.weight.requires_grad = True
+        else:
+            self.weight.requires_grad = False
 
         # NOTE: Ensure that optimizer gets an empty parameter list by enablng this
         # self.scores.requires_grad = False
@@ -118,7 +122,10 @@ class SupermaskConv(nn.Conv2d):
 
     def forward(self, x):
         subnet = GetSubnet.apply(self.clamped_scores, self.prune_rate)
-        w = self.weight * subnet
+        if self.weight_learning:
+            w = self.weight
+        else:
+            w = self.weight * subnet
         x = F.conv2d(
             x,
             w,
@@ -135,7 +142,7 @@ class SupermaskConv(nn.Conv2d):
 
 
 class SupermaskLinear(nn.Linear):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, weight_scale=1.0, weight_learning=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # initialize the scores
@@ -143,10 +150,16 @@ class SupermaskLinear(nn.Linear):
         # self.scores = nn.Parameter(torch.Tensor(self.weight.size(), dtype=torch.half))
         nn.init.kaiming_uniform_(self.scores, a=math.sqrt(5))
         # NOTE: initialize the weights like this.
-        nn.init.kaiming_normal_(self.weight, mode="fan_in", nonlinearity="relu")
-
+        # nn.init.kaiming_normal_(self.weight, mode="fan_in", nonlinearity="relu")
+        torch.nn.init.normal_(self.weight, mean=0, std=weight_scale / np.sqrt(self.in_features))
+        # self.weight.data *= weight_scale
+        
+        self.weight_learning = weight_learning
         # NOTE: turn the gradient on the weights off
-        self.weight.requires_grad = False
+        if self.weight_learning :
+            self.weight.requires_grad = True
+        else:
+            self.weight.requires_grad = False
 
     def set_prune_rate(self, prune_rate):
         self.prune_rate = prune_rate
@@ -161,15 +174,17 @@ class SupermaskLinear(nn.Linear):
         return self.scores.abs()
 
     def forward(self, x):
-        B, f = x.size()
         subnet = GetSubnet.apply(self.clamped_scores, self.prune_rate)
         # subnet = subnet.repeat_interleave(B,dim=0)
-        w = self.weight * subnet
+        if self.weight_learning:
+            w = self.weight 
+        else:
+            w = self.weight * subnet
         return F.linear(x, w, bias=None)
 
 
 class SupermaskEmbedd(nn.Linear):
-    def __init__(self, *args, **kargs):
+    def __init__(self,  weight_scale , weight_learning, *args, **kargs):
         super().__init__(*args, **kargs)
 
         # initialize the scores
@@ -177,9 +192,14 @@ class SupermaskEmbedd(nn.Linear):
         nn.init.kaiming_uniform_(self.scores, a=math.sqrt(5))
         # NOTE: initialize the weights like this.
         nn.init.kaiming_normal_(self.weight, mode="fan_in", nonlinearity="relu")
-
+        
+        
+        self.weight_learning = weight_learning
         # NOTE: turn the gradient on the weitghts off
-        self.weight.requires_grad = False
+        if self.weight_learning :
+            self.weight.requires_grad = True
+        else:
+            self.weight.requires_grad = False
 
     def set_prune_rate(self, prune_rate):
         self.prune_rate = prune_rate
@@ -194,10 +214,12 @@ class SupermaskEmbedd(nn.Linear):
         return self.scores.abs()
 
     def forward(self, x):
-        B, f = x.size()
         subnet = GetSubnet.apply(self.clamped_scores, self.prune_rate)
         # subnet = subnet.repeat_interleave(B,dim=0)
-        w = self.weight * subnet
+        if self.weight_learning:
+            w = self.weight
+        else:
+            w = self.weight * subnet
         return torch.einsum("dbp -> bpd", w[:, x])
 
 
@@ -489,7 +511,7 @@ def get_weight_norm(model):
     )
     
 def get_weight_sparsity(model, k=0.1):
-    total_weight = torch.cat([model.state_dict()["embed.W_E"].flatten(),model.state_dict()["inproj.W"].flatten(),model.state_dict()["outproj.W"].flatten(),model.state_dict()["unembed.W_U"].flatten()], dim=0)
+    total_weight = torch.cat([model.state_dict()[key].flatten() for key in model.state_dict().keys()], dim=0)
     weight_epsilon = total_weight.abs().max().item()*k
     weight_sparsity = torch.sum(total_weight.abs() < weight_epsilon).item()/total_weight.numel()
     return weight_sparsity
