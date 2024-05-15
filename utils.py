@@ -142,7 +142,7 @@ class SupermaskConv(nn.Conv2d):
 
 
 class SupermaskLinear(nn.Linear):
-    def __init__(self, weight_scale=1.0, weight_learning=True, *args, **kwargs):
+    def __init__(self, weight_scale=1.0, weight_learning=True, double_reg=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # initialize the scores
@@ -155,6 +155,7 @@ class SupermaskLinear(nn.Linear):
         # self.weight.data *= weight_scale
         
         self.weight_learning = weight_learning
+        self.double_reg = double_reg
         # NOTE: turn the gradient on the weights off
         if self.weight_learning :
             self.weight.requires_grad = True
@@ -176,15 +177,15 @@ class SupermaskLinear(nn.Linear):
     def forward(self, x):
         subnet = GetSubnet.apply(self.clamped_scores, self.prune_rate)
         # subnet = subnet.repeat_interleave(B,dim=0)
-        if self.weight_learning:
-            w = self.weight 
+        if self.weight_learning and not self.double_reg:
+                w = self.weight 
         else:
             w = self.weight * subnet
         return F.linear(x, w, bias=None)
 
 
 class SupermaskEmbedd(nn.Linear):
-    def __init__(self,  weight_scale , weight_learning, *args, **kargs):
+    def __init__(self,  weight_scale=1.0, weight_learning=True, double_reg=False, *args, **kargs):
         super().__init__(*args, **kargs)
 
         # initialize the scores
@@ -195,6 +196,7 @@ class SupermaskEmbedd(nn.Linear):
         
         
         self.weight_learning = weight_learning
+        self.double_reg = double_reg
         # NOTE: turn the gradient on the weitghts off
         if self.weight_learning :
             self.weight.requires_grad = True
@@ -216,7 +218,7 @@ class SupermaskEmbedd(nn.Linear):
     def forward(self, x):
         subnet = GetSubnet.apply(self.clamped_scores, self.prune_rate)
         # subnet = subnet.repeat_interleave(B,dim=0)
-        if self.weight_learning:
+        if self.weight_learning and not self.double_reg:
             w = self.weight
         else:
             w = self.weight * subnet

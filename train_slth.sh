@@ -1,6 +1,8 @@
 #!/usr/bin/zsh 
-s=3
-
+s=0
+python train_slth.py -o adam -w 1 -l 0.01 -s $s --width_ratio 1 --weight_learning
+python train_slth.py -o adam -w 2 -l 0.01 -s $s --width_ratio 1 --weight_learning
+python train_slth.py -o adam -w 3 -l 0.01 -s $s --width_ratio 1 --weight_learning
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_learning 
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 4 --weight_learning 
@@ -23,14 +25,14 @@ s=3
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 16384
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 65536
 
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.0
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.1
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.2
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.3
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.4
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.5
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.6
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.7
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.8
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.9
-python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 1.0
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.0
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.1
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.2
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.3
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.4
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.5
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.6
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.7
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.8
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 0.9
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1  --exp_tag pruning_rate --pruning_rate 1.0

@@ -106,7 +106,7 @@ def prune_loop(
 
 def main(config):
     wandb.init(
-        project="grokking_ICML_rebuttal", name=config.exp_name, config=config
+        project="grokking_train_phase", name=config.exp_name, config=config
     )
     if config.model == "transformer":
         model = Transformer(
@@ -131,6 +131,7 @@ def main(config):
             use_ln=config.use_ln,
             weight_scale=config.weight_scale,
         )
+    print("weight_path", config.weight_path)
     model.load_state_dict(torch.load(config.weight_path)["model"])
     model.to("cuda")
     criterion = nn.CrossEntropyLoss()
@@ -191,7 +192,7 @@ def main(config):
         torch.save(save_dict, config.root / run_name / "init.pth")
     train_losses = []
     test_losses = []
-    model.relive_neurons()
+    # model.relive_neurons()
     #model.random_priod()
     same_norm_init = False
     if same_norm_init:
@@ -310,7 +311,7 @@ def main(config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-p", "--prune_rate", type=float, default=0.4, help="prune rate"
+        "-p", "--prune_rate", type=float, default=0.9, help="prune rate"
     )
     parser.add_argument("-s", "--seed", type=int, default=0, help="seed")
     parser.add_argument("-e", "--epoch", default="final", help="checkpoint epoch")
@@ -321,4 +322,6 @@ if __name__ == "__main__":
     config.seed = parser.parse_args().seed
     config.checkpoint = parser.parse_args().epoch
     config.pruner = parser.parse_args().pruner
+    config.exp_name = f"{config.checkpoint}"
+    config.weight_path = config.pre_root / f"{config.checkpoint}.pth"
     main(config)

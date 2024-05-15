@@ -14,15 +14,15 @@ class Exp(object):
         self.is_div = True if "only" in self.fn_name  else False
         self.frac_train = 0.4
         self.is_symmetric_input = True
-        self.num_epochs = 50000
+        self.num_epochs = 10
         self.save_models = True 
-        self.save_every = 50000 
+        self.save_every = 5
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 1
-        self.root = Path("20240325/ICML_rebuttal/non-grokking") 
-        self.pre_root = Path("0927/exp1/mlp") 
+        self.root = Path("0404/ticket") 
+        self.pre_root = Path("/workspace/Grokking-Tickets/0404/train_phase/WIDTH_48") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
@@ -75,9 +75,13 @@ class Exp(object):
         {self.weight_scale}WS_{self.seed}seed"
         
         self.checkpoint = "final"
-        self.weight_path = self.pre_root/self.exp_name/f"{self.checkpoint}.pth"
-        self.init_weight_path = self.pre_root/self.exp_name/"init.pth"
-
-        self.exp_name = f"{self.model}_{self.pruner}_PR_{self.num_layers}L_{self.d_model}D_{self.p}P_\
-            {self.frac_train}F_{self.lr}LR_{self.weight_decay}WD_{self.is_symmetric_input}S_\
-            {self.weight_scale}WS_{self.fn_name}task_{self.reinitialize}_reinit_{self.checkpoint}_check_{self.sparsity}_sparsity"
+        # self.weight_path = self.pre_root/self.exp_name/f"{self.checkpoint}.pth"
+        self.weight_path = self.pre_root/f"{self.checkpoint}.pth"
+        # self.init_weight_path = self.pre_root/self.exp_name/"init.pth"
+        self.init_weight_path = self.pre_root/"init.pth"
+        
+        # self.exp_name = f"{self.model}_{self.pruner}_PR_{self.num_layers}L_{self.d_model}D_{self.p}P_\
+        #     {self.frac_train}F_{self.lr}LR_{self.weight_decay}WD_{self.is_symmetric_input}S_\
+        #     {self.weight_scale}WS_{self.fn_name}task_{self.reinitialize}_reinit_{self.checkpoint}_check_{self.sparsity}_sparsity"
+        
+        self.exp_name = f"{self.checkpoint}"

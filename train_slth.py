@@ -35,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="grokking_slth3", name=config.exp_name, config=config)
+    wandb.init(project="grokking_ICML_rebuttal", name=config.exp_name, config=config)
     model = SLTHMLP(
         num_layers=config.num_layers,
         d_vocab=config.d_vocab,
@@ -47,6 +47,7 @@ def main(config):
         prune_rate=config.prune_rate,
         weight_learning=config.weight_learning,
         img_size=config.img_size,
+        double_reg=config.double_reg,
     )
     if config.weight_init_path is not None:
         model.load_state_dict(torch.load(config.weight_init_path)["model"])
@@ -68,6 +69,11 @@ def main(config):
         )
     # scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
     run_name = config.exp_name
+    # if config.weight_init_path is not None:
+    #     init_path = config.weight_init_path.split("/")[:-1] + ["init.pth"]
+    #     init_path = "/".join(init_path)
+    #     train, test = torch.load(init_path)["train_data"], torch.load(init_path)["test_data"]
+    
     train, test = gen_train_test(
         config.frac_train,
         config.d_vocab,
@@ -105,14 +111,14 @@ def main(config):
                 test_loss, test_acc, test_prob, test_sample = full_loss_mlp(
                     model, test, config.fn, config.p, is_div=config.is_div
                 )
-            pbar.set_postfix(
-                OrderedDict(
-                    Train_Loss=train_loss.item(),
-                    Test_Loss=test_loss.item(),
-                    Train_acc=train_acc,
-                    Test_acc=test_acc,
-                )
-            )
+            # pbar.set_postfix(
+            #     OrderedDict(
+            #         Train_Loss=train_loss.item(),
+            #         Test_Loss=test_loss.item(),
+            #         Train_acc=train_acc,
+            #         Test_acc=test_acc,
+            #     )
+            # )
             # l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
             # weight_sparsity = get_weight_sparsity(model, k=config.sparse_k)
             wandb.log(
@@ -193,10 +199,11 @@ if __name__ == "__main__":
     parser.add_argument( "--width_ratio", type=int, default=1, help="width")
     parser.add_argument( "--weight_learning", action="store_true", help="weight_learning")
     parser.add_argument( "--weight_init_path", default=None, help="weight_init_path")
-    parser.add_argument( "--num_epochs", type=int, default=30000, help="epochs")
-    parser.add_argument( "--save_every", type=int, default=200, help="save_every")
+    parser.add_argument( "--num_epochs", type=int, default=10000, help="epochs")
+    parser.add_argument( "--save_every", type=int, default=2000, help="save_every")
     parser.add_argument( "--exp_tag", type=str, default="normal", help="exp_tag")
     parser.add_argument( "--pruning_rate", type=float, default=0.4, help="model")
+    parser.add_argument( "--double_reg", action="store_true", help="double_reg")
     
     config = Exp()
     config.seed = parser.parse_args().seed
@@ -212,6 +219,7 @@ if __name__ == "__main__":
     config.save_every = parser.parse_args().save_every
     exp_tag = parser.parse_args().exp_tag
     config.prune_rate = parser.parse_args().pruning_rate
+    config.double_reg = parser.parse_args().double_reg
     
     if config.weight_init_path is not None:
         config.exp_name = "{exp_tag}/WIDTHRATIO_{ratio}_WEIGHTLR_{weight_lr}_WEIGHTINIT_{weight_init_path}".format(exp_tag=exp_tag ,ratio=parser.parse_args().width_ratio, weight_lr=config.weight_learning, weight_init_path=config.weight_init_path.replace("/", "_"))

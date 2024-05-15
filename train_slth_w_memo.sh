@@ -19,8 +19,8 @@ s=0
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.2
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.3
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.4 --exp_tag 0201
-python train_slth.py -o adam -w 0 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.4 --exp_tag 0201
-python train_slth.py -o adam -w 1 -l 0.01 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.4 --exp_tag 0201
+# python train_slth.py -o adam -w 0 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.4 --exp_tag 0201
+# python train_slth.py -o adam -w 1 -l 0.01 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.4 --exp_tag 0201
 # python train_slth.py -o adam -w 2 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.5 --exp_tag 0201
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.5
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth --pruning_rate 0.6

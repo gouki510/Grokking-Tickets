@@ -12,16 +12,16 @@ class Exp(object):
         self.d_model = 48 #128#48#48
         self.fn_name = 'add'  #['add', 'subtract', 'x2xyy2','rand']'
         self.is_div = True if "only" in self.fn_name  else False
-        self.frac_train = 0.5
+        self.frac_train = 0.4
         self.is_symmetric_input = True #False if 'subtract' in self.fn_name else True
-        self.num_epochs = 10000
+        self.num_epochs = 1000
         self.save_models = True 
-        self.save_every = 200
+        self.save_every = 5
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0
-        self.root = Path("0120/detail") 
+        self.root = Path("0404/train_phase") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 

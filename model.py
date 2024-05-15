@@ -230,7 +230,7 @@ class MLP2(nn.Module):
         x = self.hook_post(x)
         x = torch.einsum(
             "dm,bpm->bpd", self.W_out * self.weight_mask_out, x
-        )  # + self.b_out
+        )  # + self.b_out’
         return x
 
     def set_weight_ratio(self, weight_ratio):
@@ -587,26 +587,33 @@ class SLTHMLP(nn.Module):
         prune_rate=0.4,
         weight_learning=True,
         img_size=None,
+        double_reg=False,
     ):
         super().__init__()
         # self.model = [model]
         self.img_size = img_size
         if not img_size is None:
             d_input = img_size[0] * img_size[1] * img_size[2]
-            self.embbed = SupermaskLinear(in_features=d_input, out_features=d_emb, weight_scale=weight_scale, weight_learning=weight_learning)
+            self.embbed = SupermaskLinear(in_features=d_input, out_features=d_emb, weight_scale=weight_scale, \
+                                            weight_learning=weight_learning, double_reg=double_reg)
         else:
             d_input = d_vocab
-            self.embbed = SupermaskEmbedd(in_features=d_input, out_features=d_emb, weight_scale=weight_scale, weight_learning=weight_learning)
+            self.embbed = SupermaskEmbedd(in_features=d_input, out_features=d_emb, weight_scale=weight_scale, \
+                                            weight_learning=weight_learning, double_reg=double_reg)
         self.embbed.set_prune_rate(prune_rate)
-        self.inproj = SupermaskLinear(in_features=d_emb, out_features=d_model,  weight_scale=weight_scale, weight_learning=weight_learning)
+        self.inproj = SupermaskLinear(in_features=d_emb, out_features=d_model,  weight_scale=weight_scale, \
+                                        weight_learning=weight_learning, double_reg=double_reg)
         self.inproj.set_prune_rate(prune_rate)
-        self.outproj = SupermaskLinear(in_features=d_model, out_features=d_emb,  weight_scale=weight_scale, weight_learning=weight_learning)
+        self.outproj = SupermaskLinear(in_features=d_model, out_features=d_emb,  weight_scale=weight_scale, \
+                                        weight_learning=weight_learning, double_reg=double_reg)
         self.outproj.set_prune_rate(prune_rate)
-        self.unembed = SupermaskLinear(in_features=d_emb, out_features=d_vocab,  weight_scale=weight_scale, weight_learning=weight_learning)
+        self.unembed = SupermaskLinear(in_features=d_emb, out_features=d_vocab,  weight_scale=weight_scale, \
+                                        weight_learning=weight_learning, double_reg=double_reg)
         self.unembed.set_prune_rate(prune_rate)
         self.mlps = nn.ModuleList(
             [
-                SupermaskLinear(in_features=d_emb, out_features=d_vocab,  weight_scale=weight_scale, weight_learning=weight_learning)
+                SupermaskLinear(in_features=d_emb, out_features=d_vocab,  weight_scale=weight_scale, \
+                                    weight_learning=weight_learning, double_reg=double_reg)
                 for i in range(num_layers)
             ]
         )

@@ -48,6 +48,7 @@ class Exp(object):
         self.prune_rate = 0.4
         self.weight_learning = True
         self.weight_init_path = None
+        self.double_reg = False
 
         self.random_answers = np.random.randint(low=0, high=self.p, size=(self.p, self.p))
 

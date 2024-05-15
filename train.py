@@ -35,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="grokking_width", name=config.exp_name, config=config)
+    wandb.init(project="grokking_train_phase", name=config.exp_name, config=config)
     if config.model == "transformer":
         model = Transformer(
             num_layers=config.num_layers,
