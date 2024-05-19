@@ -307,6 +307,32 @@ def full_loss_mlp(model, data, fn, p, is_div=False, device="cuda", vis=True):
         fig
     )
 
+def full_loss_mlp_multi(model, data, fn_dict, p, is_div=False, fn_names=["add", "substract"], device="cuda", vis=True):
+    # Take the final position only
+    data_mlp = list(map(lambda x: (x[0], x[2]), data))
+    logits = model(data_mlp)
+    prob = F.softmax(logits, dim=1)
+    labels = torch.tensor([fn_dict[fn_names[0]](a, b) for a, op ,b, _ in data ]).to(device)
+    pred = torch.argmax(prob, dim=1)
+    if vis:
+        fig = visalize_sample(pred, labels, fn_dict, fn_names, p, data)
+    else:
+        fig = None
+    if is_div:
+        accuracy = multiclass_accuracy(
+            input=logits, target=labels, num_classes=p * 2, average="micro"
+        ).item()
+    else:
+        accuracy = multiclass_accuracy(
+            input=logits, target=labels, num_classes=p, average="micro"
+        ).item()
+    return (
+        cross_entropy_high_precision(logits, labels),
+        accuracy,
+        torch.mean(torch.gather(prob, index=labels[:, None], dim=-1)),
+        fig
+    )
+
 def calc_hess(model, data, fn, p, is_div=False):
         # Take the final position only
     logits = model(data)

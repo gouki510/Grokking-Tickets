@@ -106,7 +106,7 @@ def prune_loop(
 
 def main(config):
     wandb.init(
-        project="grokking_train_phase", name=config.exp_name, config=config
+        project="Neurips2024_grokking_prune", name=config.exp_name, config=config
     )
     if config.model == "transformer":
         model = Transformer(

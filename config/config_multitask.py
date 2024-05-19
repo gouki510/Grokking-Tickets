@@ -9,27 +9,27 @@ class Exp(object):
         self.weight_decay = 2
         self.p = 67 
         self.d_emb = 500
-        self.d_model = 128 #256 #128#48#48
-        self.fn_name = ['multiply']  #['add', 'subtract', 'x2xyy2','rand']'
+        self.d_model = 48 #256 #128#48#48
+        self.fn_name = ['add', 'subtract',  'x2y2', 'x2xyy2x','x2xyy2', 'x3xy', 'x3xy2y', 'x2xyy2x2', 'x2xyy2y2', 'x22xyy2', 'x22xyy2y']
         
         self.is_div = True if "only" in self.fn_name  else False
-        self.frac_train = 0.5
-        self.is_symmetric_input = False #True #False if 'subtract' in self.fn_name else True
-        self.num_epochs = 30000 
+        self.frac_train = 0.4
+        self.is_symmetric_input = True #True #False if 'subtract' in self.fn_name else True
+        self.num_epochs = 50000 
         self.save_models = True 
         self.save_every = 2000
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0
-        self.root = Path("1212/base") 
-        self.model = 'transformer' # ['mlp', 'transformer']
+        self.root = Path("20240516/multiarith") 
+        self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
-        self.num_layers =  1
+        self.num_layers =  0
         self.batch_style = 'full' # ['full', 'random']
-        self.d_vocab = self.p+1+len(self.fn_name) 
-        self.n_ctx = 4
+        self.d_vocab = self.p#+1+len(self.fn_name) 
+        self.n_ctx = 2
         self.d_mlp = 1*self.d_model
         self.num_heads = 1
         assert self.d_model % self.num_heads == 0

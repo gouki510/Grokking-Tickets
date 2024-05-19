@@ -18,16 +18,16 @@ from utils import (
     lines,
     full_loss,
     full_loss_mlp,
+    full_loss_mlp_multi,
     calc_hess,
     visualize_embedding,
     get_weight_norm,
     lp_reg,
     get_param,
-    visualize_neuron_activation,
-    visualize_neuron_activation_v2,
-    get_weight_sparsity
+    full_loss_multi,
+    visalize_attention,
 )
-from config.config import Exp
+from config.config_multitask import Exp
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -35,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="Neurips2024_grokking", name=config.exp_name, config=config)
+    wandb.init(project="Neurips2024_grokking_multitask", name=config.exp_name, config=config)
     if config.model == "transformer":
         model = Transformer(
             num_layers=config.num_layers,
@@ -82,54 +82,52 @@ def main(config):
             prune_rate=config.prune_rate,
         )
     model.to("cuda")
-    if config.optimizer == "adam":
-        optimizer = optim.AdamW(
-            model.parameters(),
-            lr=config.lr,
-            weight_decay=config.weight_decay,
-            betas=(0.9, 0.98),
-        )
-    elif config.optimizer == "sgd":
-        optimizer = optim.SGD(
-            model.parameters(),
-            lr=config.lr,
-            momentum=config.momentum,
-            weight_decay=config.weight_decay,
-        )
+    optimizer = optim.AdamW(
+        model.parameters(),
+        lr=config.lr,
+        weight_decay=config.weight_decay,
+        betas=(0.9, 0.98),
+    )
     # scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(step/10, 1))
-    run_name = config.exp_name
-    train, test = gen_train_test(
+    run_name = f"{config.exp_name}"
+
+    train, test = gen_train_test_multi(
         config.frac_train,
-        config.d_vocab,
+        config.p,
         seed=config.seed,
         is_symmetric_input=config.is_symmetric_input,
+        fn_names=config.fn_name,
+        p=config.p,
     )
     if config.save_models:
-        os.makedirs(config.root / run_name, exist_ok=True)
+        os.makedirs(config.root / run_name, exist_ok=True)  
         save_dict = {
             "model": model.state_dict(),
             "train_data": train,
             "test_data": test,
         }
-        print(f"Saved model to {config.root/run_name/'init.pth'}")
         torch.save(save_dict, config.root / run_name / "init.pth")
     train_losses = []
     test_losses = []
     with tqdm(range(config.num_epochs)) as pbar:
-        pbar.set_description()
+        pbar.set_description(f"")
         for epoch in pbar:
             if config.model == "transformer":
-                train_loss, train_acc, train_prob = full_loss(
-                    model, train, fn=config.fn, p=config.p, is_div=config.is_div
+                train_loss, train_acc, train_prob, fig_train = full_loss_multi(
+                    model, train, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
                 )
                 train_loss += config.lp_alpha*lp_reg(model, config.lp)
-                test_loss, test_acc, test_prob = full_loss(
-                    model, test, fn=config.fn, p=config.p, is_div=config.is_div
+                test_loss, test_acc, test_prob, fig_test = full_loss_multi(
+                    model, test, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
                 )
             elif config.model == "mlp":
-                train_loss, train_acc, train_prob, train_sample = full_loss_mlp(
-                    model, train, config.fn, config.p, is_div=config.is_div
+                train_loss, train_acc, train_prob, fig_train = full_loss_mlp_multi(
+                    model, train, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
                 )
+                test_loss, test_acc, test_prob, fig_test = full_loss_mlp_multi(
+                    model, test, fn_dict=config.fns_dict, p=config.p, is_div=config.is_div, fn_names=config.fn_name
+                )
+                
                 """params = model.parameters()#get_param(model)
                 env_grads = torch.autograd.grad(train_loss, params, create_graph=True)
                 hess_train = 0
@@ -140,12 +138,12 @@ def main(config):
                             params = model.parameters()
                             hess_train += torch.autograd.grad(grad, params, create_graph=True)[k][i, j] 
                 hess_train = hess_train / (env_grads[0].size(0)*env_grads[0].size(1)*len(env_grads))
-                """
+            """
 
                 train_loss += config.lp_alpha*lp_reg(model, config.lp)
-                test_loss, test_acc, test_prob, test_sample = full_loss_mlp(
-                    model, test, config.fn, config.p, is_div=config.is_div
-                )
+                # test_loss, test_acc, test_prob = full_loss_mlp(
+                #     model, test, config.fn, config.p, is_div=config.is_div
+                # )
             pbar.set_postfix(
                 OrderedDict(
                     Train_Loss=train_loss.item(),
@@ -154,8 +152,7 @@ def main(config):
                     Test_acc=test_acc,
                 )
             )
-            l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
-            weight_sparsity = get_weight_sparsity(model, k=config.sparse_k)
+            #l1norm, l2norm, l1mask_norm, l2mask_norm = get_weight_norm(model)
             wandb.log(
                 {
                     "epoch": epoch,
@@ -165,12 +162,11 @@ def main(config):
                     "test_acc": test_acc,
                     "train_prob": train_prob,
                     "test_prob": test_prob,
-                    "l1norm": l1norm,
-                    "l2norm": l2norm,
-                    "l1mask_norm": l1mask_norm,
-                    "l2mask_norm": l2mask_norm,
+                    #"l1norm": l1norm,
+                    #"l2norm": l2norm,
+                    #"l1mask_norm": l1mask_norm,
+                    #"l2mask_norm": l2mask_norm,
                     #"hess_train": hess_train,
-                    "weight_sparsity": weight_sparsity,
                 }
             )
             train_loss.backward()
@@ -183,21 +179,24 @@ def main(config):
                 #fig = visualize_weight_distribution(model)
                 #wandb.log({"weight_distribution": fig})
                 #plt.close()
+                #plt.cla()
                 #ims = visualize_weight(model)
                 #wandb.log({"weight": ims})
                 #plt.close()
+                #plt.cla()
                 #emb_img = visualize_embedding(model, p=config.p)
                 #wandb.log({"embedding": emb_img})
                 #plt.close()
-                wandb.log({"train_sample": train_sample})
-                wandb.log({"test_sample": test_sample})
-                plt.close()
-                # if config.model == "mlp":
-                #     act_img = visualize_neuron_activation(model, train)
-                #     wandb.log({"neuron activation": wandb.Image(act_img)})
+                if config.model == "transformer":
+                    wandb.log({"fig_train_sample": wandb.Image(fig_train)})
+                    wandb.log({"fig_test_sample": wandb.Image(fig_test)})
+                    plt.close()
+                    plt.cla()
+                    attn_img = visalize_attention(model)
+                    wandb.log({"attention": attn_img})
+                    plt.close()
+                    plt.cla()
 
-                if test_loss.item() < config.stopping_thresh:
-                    break
                 save_dict = {
                     "model": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
@@ -206,7 +205,7 @@ def main(config):
                     "test_loss": test_loss,
                     "epoch": epoch,
                 }
-                torch.save(save_dict, config.root / run_name / '{epoch}.pth'.format(epoch=epoch))
+                torch.save(save_dict, config.root / run_name / f"{epoch}.pth")
                 # print(f"Saved model to {root/run_name/f'{epoch}.pth'}")
         if not config.save_models:
             os.mkdir(config.root / run_name)
@@ -220,24 +219,16 @@ def main(config):
             "test_losses": test_losses,
             "epoch": epoch,
         }
-        torch.save(save_dict, config.root / run_name / "final.pth")
+        torch.save(save_dict, config.root / run_name / f"final.pth")
         wandb.finish()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=0, help="seed")
-    parser.add_argument("-o", "--optimizer", type=str, default="sgd", help="optimizer")
-    parser.add_argument("-w", "--weight_decay", type=float, default=1, help="weight_decay")
-    parser.add_argument("-l", "--lr", type=float, default=1e-2, help="lr")
-    parser.add_argument("-m", "--momentum", type=float, default=0.9, help="momentum")
-    parser.add_argument( "--width", type=int, default=48, help="width")
     config = Exp()
-    config.seed = parser.parse_args().seed
-    config.optimizer = parser.parse_args().optimizer
-    config.weight_decay = parser.parse_args().weight_decay
-    config.lr = parser.parse_args().lr
-    config.momentum = parser.parse_args().momentum
-    config.d_model = parser.parse_args().width
-    config.exp_name = "seed{seed}".format(seed=config.seed)
-    main(config)
+    for fn_name in config.fn_name:
+        config.fn_name = [fn_name]
+        config.exp_name = f"FN_{fn_name}"
+        config.seed = parser.parse_args().seed
+        main(config)

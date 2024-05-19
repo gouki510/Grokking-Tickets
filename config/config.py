@@ -14,14 +14,14 @@ class Exp(object):
         self.is_div = True if "only" in self.fn_name  else False
         self.frac_train = 0.4
         self.is_symmetric_input = True #False if 'subtract' in self.fn_name else True
-        self.num_epochs = 1000
+        self.num_epochs = 30000
         self.save_models = True 
         self.save_every = 5
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0
-        self.root = Path("0404/train_phase") 
+        self.root = Path("20240516/multiarith") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 
@@ -46,14 +46,14 @@ class Exp(object):
 
         self.random_answers = np.random.randint(low=0, high=self.p, size=(self.p, self.p))
 
-        self.fns_dict = {'add': lambda x,y:(x+y)%self.p, }
-                        # 'subtract': lambda x,y:(y-x)%self.p, 
-                         #'x2xyy2':lambda x,y:(x**2+x*y+y**2)%self.p, 
+        self.fns_dict = {'add': lambda x,y:(x+y)%self.p, 
+                        'subtract': lambda x,y:(y-x)%self.p, 
+                        #  'x2xyy2':lambda x,y:(x**2+x*y+y**2)%self.p, 
                          #'rand':lambda x,y:self.random_answers[x][y],\
-                        #'multiply':lambda x,y:(x*y)%self.p, }
+                        'multiply':lambda x,y:(x*y)%self.p, 
                         #'x2xyy2':lambda x,y:(x**2+x*y+y**2)%self.p,\
                         #'divide':lambda x,y:(x//(y+1))%self.p,
-                        #'x2y2':lambda x,y:(x**2+y**2)%self.p, }
+                        'x2y2':lambda x,y:(x**2+y**2)%self.p, }
                         #'x2xyy2x':lambda x,y:(x**2+x*y+y**2+x)%self.p,\
                         #'x3xy':lambda x,y:(x**3+x*y)%self.p, 'x3xy2y':lambda x,y:(x**2+x*y**2+y)%self.p,}
                         #'x2xyy2x2':lambda x,y:(x**2+x*y+y**2+x**2)%self.p, 'x2xyy2y2':lambda x,y:(x**2+x*y+y**2+y**2)%self.p}

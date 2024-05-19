@@ -12,6 +12,7 @@ import seaborn as sns
 sns.set()
 from utils import GetSubnet, SupermaskLinear, SupermaskEmbedd, SupermaskConv
 
+torch.manual_seed(0)
 
 # Define network architecture
 # I defined my own transformer from scratch so I'd fully understand each component
