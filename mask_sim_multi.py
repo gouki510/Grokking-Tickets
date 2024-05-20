@@ -22,15 +22,18 @@ def main(dir_path):
         total_masks = {}    
         print(layer)
         for weight_path in weight_paths:
-            weight_path = os.path.join(weight_path,"final.pth")
-            name = weight_path.split("/")[-2].split("_")[-1].replace("epoch", "").replace("000", "k")
-            if "final" in name :
-                continue
+            # weight_path = os.path.join(weight_path,"final.pth")
+            # filename extraxt 
+            print(weight_path)
+            name = os.path.basename(weight_path)
+            # if "final" in name :
+            #     continue
             config = Exp()
             model = OnlyMLP(num_layers=config.num_layers, d_vocab=config.d_vocab, \
                                     d_model=config.d_model, d_emb=config.d_emb, \
                                     act_type=config.act_type,  use_ln=config.use_ln, \
                                     weight_scale=config.weight_scale)
+            print(torch.load(weight_path).keys())
             model.load_state_dict(torch.load(weight_path)["model"])
             W_mask = model.state_dict()[f"{layer}.weight_mask"]
             total_masks[name] = W_mask.view(-1)
@@ -39,6 +42,7 @@ def main(dir_path):
         for i, (name1, mask1) in enumerate(total_masks.items()):
             for j, (name2, mask2) in enumerate(total_masks.items()):
                 jaccard_dis[i][j] = jaccard_distance(mask1, mask2)
+                print(jaccard_dis[i][j])
         jaccard_distance_layer[layer] = jaccard_dis.numpy()
         # ax[layer_i//2][layer_i%2].imshow(jaccard_dis.numpy(), cmap=cm.Blues, interpolation='nearest')
         # ax[layer_i//2][layer_i%2].grid(False)

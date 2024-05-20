@@ -14,15 +14,15 @@ class Exp(object):
         self.is_div = True if "only" in self.fn_name  else False
         self.frac_train = 0.4
         self.is_symmetric_input = True
-        self.num_epochs = 30000
+        self.num_epochs = 1
         self.save_models = True 
-        self.save_every = 10000
+        self.save_every = 5
 
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 1
-        self.root = Path("20240517/ticket") 
-        self.pre_root = Path("/workspace/Grokking-Tickets/20240515/detail/seed0") 
+        self.root = Path("/workspace/Grokking-Tickets/20240516/multiarith/FN_x2xyy2x_3seed_prune") 
+        self.pre_root = Path("/workspace/Grokking-Tickets/20240516/multiarith/FN_x2xyy2x_3seed") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)
 

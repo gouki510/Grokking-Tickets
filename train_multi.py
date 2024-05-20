@@ -231,4 +231,5 @@ if __name__ == "__main__":
         config.fn_name = [fn_name]
         config.exp_name = f"FN_{fn_name}"
         config.seed = parser.parse_args().seed
+        config.exp_name = f"FN_{fn_name}_{config.seed}seed2"
         main(config)

@@ -10,7 +10,7 @@ class Exp(object):
         self.p = 67 
         self.d_emb = 500
         self.d_model = 48 #256 #128#48#48
-        self.fn_name = ['add', 'subtract',  'x2y2', 'x2xyy2x','x2xyy2', 'x3xy', 'x3xy2y', 'x2xyy2x2', 'x2xyy2y2', 'x22xyy2', 'x22xyy2y']
+        self.fn_name = ['add',]# 'subtract',  'x2y2', 'x2xyy2x','x2xyy2', 'x3xy', 'x3xy2y', 'x2xyy2x2', 'x2xyy2y2', 'x22xyy2', 'x22xyy2y']
         
         self.is_div = True if "only" in self.fn_name  else False
         self.frac_train = 0.4

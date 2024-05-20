@@ -25,7 +25,7 @@ from utils import (
     get_weight_norm,
     lp_reg,
 )
-from config.config_pruning import Exp
+from config.config_pruning_multi import Exp
 import warnings
 from pruner import Pruner, Rand, Mag, SNIP, GraSP, SynFlow
 from generator import masked_parameters
@@ -106,7 +106,7 @@ def prune_loop(
 
 def main(config):
     wandb.init(
-        project="Neurips2024_grokking_prune", name=config.exp_name, config=config
+        project="Neurips2024_grokking_prune_multi", name=config.exp_name, config=config
     )
     if config.model == "transformer":
         model = Transformer(
@@ -317,15 +317,11 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epoch", default="final", help="checkpoint epoch")
     parser.add_argument("-m", "--pruner", type=str, default="mag", help="pruner")
     parser.add_argument("-w", "--weight_path", type=str, default="add", help="fn_name")
-    parser.add_argument("--root",  type=str, default="20240517/ticket", help="root_path")
-    parser.add_argument("--pre_root",  type=str, default="/workspace/Grokking-Tickets/20240515/detail/seed0", help="pre_root_path")
     config = Exp()
     config.sparsity = parser.parse_args().prune_rate
     config.seed = parser.parse_args().seed
     config.checkpoint = parser.parse_args().epoch
     config.pruner = parser.parse_args().pruner
     config.exp_name = f"{config.checkpoint}"
-    config.root = Path(parser.parse_args().root)
-    config.pre_root = Path(parser.parse_args().pre_root)
     config.weight_path = config.pre_root / f"{config.checkpoint}.pth"
     main(config)
