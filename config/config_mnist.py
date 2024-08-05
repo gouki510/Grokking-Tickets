@@ -28,6 +28,7 @@ class Exp(object):
         self.d_mlp = 1*self.d_model
         self.act_type = 'ReLU'  # ['ReLU', 'GELU']
         self.weight_scale = 8
+        self.sparse_k = 0.1
 
         self.use_ln = False
 

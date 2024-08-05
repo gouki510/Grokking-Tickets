@@ -105,8 +105,13 @@ def prune_loop(
 
 
 def main(config):
-    wandb.init(
-        project="grokking_ICML_rebuttal", name=config.exp_name, config=config
+    if config.fn_name == 'subtract':
+        wandb.init(
+            project="Neurips2024_transfer", name=config.exp_name, config=config
+        )
+    else:
+        wandb.init(
+            project="Neurips2024_delata_t_2", name=config.exp_name, config=config
     )
     if config.model == "transformer":
         model = Transformer(
@@ -316,9 +321,13 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epoch", default="final", help="checkpoint epoch")
     parser.add_argument("-m", "--pruner", type=str, default="mag", help="pruner")
     parser.add_argument("-w", "--weight_path", type=str, default="add", help="fn_name")
+    parser.add_argument("-lr", "--lr", type=float, default=1e-2, help="learning rate")
+    parser.add_argument("-wd", "--weight_decay", type=float, default=1, help="weight decay")
     config = Exp()
     config.sparsity = parser.parse_args().prune_rate
     config.seed = parser.parse_args().seed
     config.checkpoint = parser.parse_args().epoch
     config.pruner = parser.parse_args().pruner
+    config.lr = parser.parse_args().lr
+    config.weight_decay = parser.parse_args().weight_decay
     main(config)

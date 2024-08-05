@@ -372,7 +372,6 @@ class Transformer(nn.Module):
         return x
         
 
-
 class OnlyMLP(nn.Module):
     """
     b : batch size
@@ -458,6 +457,173 @@ class OnlyMLP(nn.Module):
             x = mlp(x)
             x = self.act(x)
         x = self.outproj(x)
+        x = self.unembed(x)
+        return x
+
+    def get_embedding(self, x):
+        return self.embed(x)
+    
+    def get_neuron_activation(self, x):
+        x = self.embed(x)
+        x = self.inproj(x)
+        x = x.sum(dim=1)
+        x = self.act(x)
+        return x
+    
+    def pred_from_embedding(self, e):
+        x = self.inproj(e)
+        x = x.sum(dim=1)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        x = self.outproj(x)
+        x = self.unembed(x)
+        return x
+    
+class OnlyMLP_Polynominal(nn.Module):
+    """
+    b : batch size
+    d : embedding size of token
+    p : vocabraly size
+    i : number of heads
+    h : embedding size of each heads
+    """
+
+    def __init__(
+        self, num_layers, d_vocab, d_model, d_emb, act_type, use_ln=True, weight_scale=1
+    ):
+        super().__init__()
+        # self.model = [model]
+        self.use_ln = use_ln
+        self.unembed = MLP(d_emb, 1, act_type, weight_scale=weight_scale)
+        self.embed = MLP(d_vocab, d_vocab, act_type, weight_scale=weight_scale)
+        self.inproj = MLP(d_vocab, d_model, act_type, weight_scale=weight_scale)
+        self.outproj = MLP(d_model, d_emb, act_type, weight_scale=weight_scale)
+        self.mlps = nn.ModuleList(
+            [
+                MLP(d_model, d_model, act_type, weight_scale=weight_scale)
+                for i in range(num_layers)
+            ]
+        )
+        self.act_type = act_type
+        assert act_type in ["ReLU", "GeLU"]
+        self.act = nn.ReLU() if act_type == "ReLU" else nn.GELU()
+
+    def set_weight_ratio(self, weight_ratio):
+        self.embed.set_weight_ratio(weight_ratio)
+        self.unembed.set_weight_ratio(weight_ratio)
+        self.inproj.set_weight_ratio(weight_ratio)
+        self.outproj.set_weight_ratio(weight_ratio)
+        for mlp in self.mlps:
+            mlp.set_weight_ratio(weight_ratio)
+
+    def reset_mask(self):
+        self.embed.reset_mask()
+        self.unembed.reset_mask()
+        self.inproj.reset_mask()
+        self.outproj.reset_mask()
+        for mlp in self.mlps:
+            mlp.reset_mask()
+
+    def forward(self, x):
+        x = self.embed(x)
+        x = self.act(x)
+        x = self.inproj(x)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        x = self.outproj(x)
+        x = self.act(x)
+        x = self.unembed(x)
+        return x
+    
+class OnlyMLP_1layer(nn.Module):
+    """
+    b : batch size
+    d : embedding size of token
+    p : vocabraly size
+    i : number of heads
+    h : embedding size of each heads
+    """
+
+    def __init__(
+        self, num_layers, d_vocab, d_model, d_emb, act_type, use_ln=True, weight_scale=1
+    ):
+        super().__init__()
+        # self.model = [model]
+        self.use_ln = use_ln
+        self.unembed = Unembed(d_vocab, d_model, weight_scale=weight_scale)
+        self.embed = Embed(d_vocab, d_model, weight_scale=weight_scale)
+        # self.inproj = MLP(d_emb, d_model, act_type, weight_scale=weight_scale)
+        # self.outproj = MLP(d_model, d_emb, act_type, weight_scale=weight_scale)
+        self.mlps = nn.ModuleList(
+            [
+                MLP(d_model, d_model, act_type, weight_scale=weight_scale)
+                for i in range(num_layers)
+            ]
+        )
+        self.act_type = act_type
+        assert act_type in ["ReLU", "GeLU"]
+        self.act = nn.ReLU() if act_type == "ReLU" else nn.GELU()
+
+    def set_weight_ratio(self, weight_ratio):
+        self.embed.set_weight_ratio(weight_ratio)
+        self.unembed.set_weight_ratio(weight_ratio)
+        # self.inproj.set_weight_ratio(weight_ratio)
+        # self.outproj.set_weight_ratio(weight_ratio)
+        for mlp in self.mlps:
+            mlp.set_weight_ratio(weight_ratio)
+
+    def reset_mask(self):
+        self.embed.reset_mask()
+        self.unembed.reset_mask()
+        self.inproj.reset_mask()
+        self.outproj.reset_mask()
+        for mlp in self.mlps:
+            mlp.reset_mask()
+    
+    def random_priod(self):
+        num_neuron = self.inproj.W.shape[0]
+        f = [np.random.randint(1, 33) for _ in range(num_neuron)]
+        y = [0 if i % f[i] == 0 else 1 for i in range(num_neuron)]
+        #print(self.inproj.weight_mask.shape)
+        # self.inproj.weight_mask = torch.tensor(y).float().to(self.inproj.weight_mask.device).repeat(self.inproj.weight_mask.shape[1],1).T
+        ##print(self.inproj.weight_mask.shape)
+        #print(self.embed.weight_mask.shape)
+        # self.embed.weight_mask = torch.ones_like(self.embed.weight_mask).to(self.embed.weight_mask.device)
+        #print(self.embed.weight_mask.shape)
+        #print(self.outproj.weight_mask.shape)
+        # self.outproj.weight_mask = torch.tensor(y).float().to(self.outproj.weight_mask.device).repeat(self.outproj.weight_mask.shape[0],1)
+        #print(self.outproj.weight_mask.shape)   
+        #print(self.unembed.weight_mask.shape)
+        # self.unembed.weight_mask = torch.ones_like(self.unembed.weight_mask).to(self.unembed.weight_mask.device)    
+        #print(self.unembed.weight_mask.shape)
+
+    def relive_neurons(self):
+        idx0 = torch.where((self.embed.weight_mask).sum(axis=1)>0)
+        #self.embed.weight_mask[:] = 1
+        idx1 = torch.where((self.inproj.weight_mask).sum(axis=1)==0)
+        self.inproj.weight_mask[idx1] = 1
+        idx2 = torch.where((self.outproj.weight_mask).sum(axis=0)==0)
+        self.outproj.weight_mask[idx2] = 1
+        for mlp in self.mlps:
+            idx3 = torch.where((mlp.weight_mask).sum(axis=1)>0)
+            mlp.weight_mask[idx3] = 1
+        idx4 = torch.where((self.unembed.weight_mask).sum(axis=0)>0)
+        #self.unembed.weight_mask[:] = 1
+
+
+    def forward(self, x):
+        x = self.embed(x)
+        x = x.sum(dim=1)
+        # x = self.inproj(x)
+        x = self.act(x)
+        for mlp in self.mlps:
+            x = mlp(x)
+            x = self.act(x)
+        # x = self.outproj(x)
         x = self.unembed(x)
         return x
 

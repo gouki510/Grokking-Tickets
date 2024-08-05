@@ -127,3 +127,40 @@ class MNISTDataModule:
 
     def get_dataloader(self):
         return self.train_dataloader, self.test_dataloader
+    
+
+class PolynomialDataSet(torch.utils.data.Dataset):
+    def __init__(self, num_batch, d=40, train=True):
+        torch.manual_seed(0)
+        self.X = torch.randn(num_batch, d) / np.sqrt(d)
+        torch.manual_seed(1)
+        self.Xt = torch.randn(num_batch, d) / np.sqrt(d)
+        self.beta = torch.randn(d)
+        self.y = (self.X @ self.beta)**2 / 2
+        self.yt = (self.Xt @ self.beta)**2 / 2
+        self.train = train
+    
+    def __len__(self):
+        return len(self.X)
+    
+    def __getitem__(self, idx):
+        if self.train:
+            return self.X[idx], self.y[idx]
+        else:
+            return self.Xt[idx], self.yt[idx]
+
+class PolynomialDataModule:
+    def __init__(self, num_batch, d=40):
+        self.train_dataset = PolynomialDataSet(num_batch, d, train=True)
+        self.test_dataset = PolynomialDataSet(num_batch, d, train=False)
+        self.num_batch = num_batch
+        self.d = d
+        self.train_dataloader = torch.utils.data.DataLoader(
+            self.train_dataset, batch_size=self.num_batch, shuffle=True
+        )
+        self.test_dataloader = torch.utils.data.DataLoader(
+            self.test_dataset, batch_size=self.num_batch, shuffle=False
+        )
+
+    def get_dataloader(self):
+        return self.train_dataloader, self.test_dataloader

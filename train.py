@@ -10,7 +10,7 @@ from tqdm import tqdm
 from typing import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
-from model import Transformer, OnlyMLP, OnlyMLP_onlyadd, SLTHMLP
+from model import Transformer, OnlyMLP, OnlyMLP_onlyadd, SLTHMLP, OnlyMLP_1layer
 from data_module import gen_train_test, train_test_split, gen_train_test_multi
 from utils import (
     visualize_weight_distribution,
@@ -35,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="grokking_width", name=config.exp_name, config=config)
+    wandb.init(project="Neurips2024_transfer", name=config.exp_name, config=config)
     if config.model == "transformer":
         model = Transformer(
             num_layers=config.num_layers,
@@ -51,7 +51,18 @@ def main(config):
         )
     elif config.model == "mlp":
         if config.is_div:
-            model = OnlyMLP_onlyadd(
+            if config.is_1layer:
+                model = OnlyMLP_1layer(
+                    num_layers=config.num_layers,
+                    d_vocab=config.d_vocab,
+                    d_model=config.d_model,
+                    d_emb=config.d_emb,
+                    act_type=config.act_type,
+                    use_ln=config.use_ln,
+                    weight_scale=config.weight_scale,
+                )
+            else:
+                model = OnlyMLP_onlyadd(
                 num_layers=config.num_layers,
                 d_vocab=config.d_vocab,
                 d_model=config.d_model,
@@ -61,8 +72,19 @@ def main(config):
                 weight_scale=config.weight_scale,
             )
         else:
-            model = OnlyMLP(
-                num_layers=config.num_layers,
+            if config.is_1layer:
+                model = OnlyMLP_1layer(
+                    num_layers=config.num_layers,
+                    d_vocab=config.d_vocab,
+                    d_model=config.d_model,
+                    d_emb=config.d_emb,
+                    act_type=config.act_type,
+                    use_ln=config.use_ln,
+                    weight_scale=config.weight_scale,
+                )
+            else:
+                model = OnlyMLP(
+                    num_layers=config.num_layers,
                 d_vocab=config.d_vocab,
                 d_model=config.d_model,
                 d_emb=config.d_emb,
@@ -227,11 +249,13 @@ def main(config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=0, help="seed")
-    parser.add_argument("-o", "--optimizer", type=str, default="sgd", help="optimizer")
+    parser.add_argument("-o", "--optimizer", type=str, default="adam", help="optimizer")
     parser.add_argument("-w", "--weight_decay", type=float, default=1, help="weight_decay")
     parser.add_argument("-l", "--lr", type=float, default=1e-2, help="lr")
     parser.add_argument("-m", "--momentum", type=float, default=0.9, help="momentum")
     parser.add_argument( "--width", type=int, default=48, help="width")
+    parser.add_argument( "--is_symmetric_input", action="store_true", help="is_symmetric_input")
+    parser.add_argument( "--is_1layer", action="store_true", help="is_1layer")
     config = Exp()
     config.seed = parser.parse_args().seed
     config.optimizer = parser.parse_args().optimizer
@@ -239,5 +263,9 @@ if __name__ == "__main__":
     config.lr = parser.parse_args().lr
     config.momentum = parser.parse_args().momentum
     config.d_model = parser.parse_args().width
+    config.is_symmetric_input = parser.parse_args().is_symmetric_input
     config.exp_name = "WIDTH_{d_model}".format(d_model=config.d_model)
+    config.is_1layer = parser.parse_args().is_1layer
+    if config.is_1layer:
+        config.exp_name += "_1layer"
     main(config)

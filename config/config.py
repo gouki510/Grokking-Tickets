@@ -10,9 +10,9 @@ class Exp(object):
         self.p = 67
         self.d_emb = 500
         self.d_model = 48 #128#48#48
-        self.fn_name = 'add'  #['add', 'subtract', 'x2xyy2','rand']'
+        self.fn_name = 'subtract'  #['add', 'subtract', 'x2xyy2','rand']'
         self.is_div = True if "only" in self.fn_name  else False
-        self.frac_train = 0.5
+        self.frac_train = 0.4
         self.is_symmetric_input = True #False if 'subtract' in self.fn_name else True
         self.num_epochs = 10000
         self.save_models = True 
@@ -21,8 +21,9 @@ class Exp(object):
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 0
-        self.root = Path("0120/detail") 
+        self.root = Path("Neurips_rebuttal")
         self.model = 'mlp' # ['mlp', 'transformer']
+        self.is_1layer = False
         os.makedirs(self.root,exist_ok=True)
 
         self.num_layers =  0
@@ -46,8 +47,8 @@ class Exp(object):
 
         self.random_answers = np.random.randint(low=0, high=self.p, size=(self.p, self.p))
 
-        self.fns_dict = {'add': lambda x,y:(x+y)%self.p, }
-                        # 'subtract': lambda x,y:(y-x)%self.p, 
+        # self.fns_dict = {'add': lambda x,y:(x+y)%self.p, }
+        self.fns_dict = {'subtract': lambda x,y:(y-x)%self.p, }
                          #'x2xyy2':lambda x,y:(x**2+x*y+y**2)%self.p, 
                          #'rand':lambda x,y:self.random_answers[x][y],\
                         #'multiply':lambda x,y:(x*y)%self.p, }

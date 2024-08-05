@@ -1,11 +1,14 @@
-#!/usr/bin/zsh 
-array=("snip"  "rand" "mag" "grasp" "synflow")
-array2=("add", "subtract", "x2xyy2","rand")
-for j in {0..0} 
-    do 
-    for i in {1..29}
-        do
-            python prune.py  -s $j   -p $((0.1+i*0.01)) 
-        done
-    done
+# #!/bin/bash
+for i in {0..20}
+do
+    P=$(echo "$i * 0.05" | bc)
+    # python prune.py -p $P -wd 4.8
+    # python prune.py -p $P -wd 4.9
+    python prune.py -p $P -wd 1
+    # python prune.py -p $P -wd 5.1
+    # python prune.py -p $P -wd 5.2
+    # python prune.py -p $P -wd 5.3
+    # python prune.py -p $P -wd 5.4
+    # python prune.py -p $P -wd 5.5
+done
 
