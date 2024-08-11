@@ -57,7 +57,6 @@ class Pruner:
         for mask, _ in self.masked_parameters:
             mask.fill_(alpha)
 
-    # Based on https://github.com/facebookresearch/open_lth/blob/master/utils/tensor_utils.py#L43
     def shuffle(self):
         for mask, param in self.masked_parameters:
             shape = mask.shape

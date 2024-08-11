@@ -400,6 +400,25 @@ class OnlyMLP(nn.Module):
         self.act_type = act_type
         assert act_type in ["ReLU", "GeLU"]
         self.act = nn.ReLU() if act_type == "ReLU" else nn.GELU()
+        
+        self.d_vocab = d_vocab
+        self.d_model = d_model
+        self.d_emb = d_emb  
+        self.weight_scale = weight_scale
+        self.num_layers = num_layers
+        
+    def reinitialize(self):
+        self.embed = Embed(self.d_vocab, self.d_model, weight_scale=self.weight_scale)
+        self.unembed = Unembed(self.d_vocab, self.d_model, weight_scale=self.weight_scale)
+        self.inproj = MLP(self.d_emb, self.d_model, self.act_type, weight_scale=self.weight_scale)
+        self.outproj = MLP(self.d_model, self.d_emb, self.act_type, weight_scale=self.weight_scale)
+        self.mlps = nn.ModuleList(
+            [
+                MLP(self.d_model, self.d_model, self.act_type, weight_scale=self.weight_scale)
+                for i in range(self.num_layers)
+            ]
+        )
+        
 
     def set_weight_ratio(self, weight_ratio):
         self.embed.set_weight_ratio(weight_ratio)

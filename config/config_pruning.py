@@ -10,7 +10,7 @@ class Exp(object):
         self.p = 67 
         self.d_emb = 500
         self.d_model =  48
-        self.fn_name = "add"#'subtract'  #['add', 'subtract', 'x2xyy2','rand']'
+        self.fn_name = 'add'  #['add', 'subtract', 'x2xyy2','rand']'
         self.is_div = True if "only" in self.fn_name  else False
         self.frac_train = 0.4
         self.is_symmetric_input = True
@@ -21,7 +21,7 @@ class Exp(object):
         # Stop training when test loss is <stopping_thresh
         self.stopping_thresh = -1
         self.seed = 1
-        self.root = Path("20240731/Neurips_rebuttal/transfore_add2sub") 
+        self.root = Path("20240731/Neurips_rebuttal/transfer_add2sub2") 
         self.pre_root = Path("0927/exp1/mlp") 
         self.model = 'mlp' # ['mlp', 'transformer']
         os.makedirs(self.root,exist_ok=True)

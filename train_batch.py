@@ -35,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="Neurips2024_sym", name=config.exp_name, config=config)
+    wandb.init(project="Neurips2024_batch", name=config.exp_name, config=config)
     if config.model == "transformer":
         model = Transformer(
             num_layers=config.num_layers,
@@ -135,38 +135,40 @@ def main(config):
         }
         print(f"Saved model to {config.root/run_name/'init.pth'}")
         torch.save(save_dict, config.root / run_name / "init.pth")
+    if config.load_model:
+        model.load_state_dict(torch.load(config.load_model)["model"])
+        torch.save(save_dict, config.root / run_name / "init.pth")
+        train = torch.load(config.load_model)["train_data"]
+        test = torch.load(config.load_model)["test_data"]
     train_losses = []
     test_losses = []
     with tqdm(range(config.num_epochs)) as pbar:
         pbar.set_description()
         for epoch in pbar:
+            if config.batch_size > len(train):
+                # print("Batch size is larger than the number of training samples")
+                train_batch = train
+            else:
+                # print("Batch size is smaller than the number of training samples")
+                train_batch_id = np.random.choice(len(train), config.batch_size, replace=False)
+                train_batch = list(np.array(train)[train_batch_id])
+            test_batch = test
             if config.model == "transformer":
                 train_loss, train_acc, train_prob = full_loss(
-                    model, train, fn=config.fn, p=config.p, is_div=config.is_div
+                    model, train_batch, fn=config.fn, p=config.p, is_div=config.is_div
                 )
                 train_loss += config.lp_alpha*lp_reg(model, config.lp)
                 test_loss, test_acc, test_prob = full_loss(
-                    model, test, fn=config.fn, p=config.p, is_div=config.is_div
+                    model, test_batch, fn=config.fn, p=config.p, is_div=config.is_div
                 )
             elif config.model == "mlp":
                 train_loss, train_acc, train_prob, train_sample = full_loss_mlp(
-                    model, train, config.fn, config.p, is_div=config.is_div
+                    model, train_batch, config.fn, config.p, is_div=config.is_div
                 )
-                """params = model.parameters()#get_param(model)
-                env_grads = torch.autograd.grad(train_loss, params, create_graph=True)
-                hess_train = 0
-                for k ,env_grad in enumerate(env_grads):
-                    for i in range(env_grad.size(0)):
-                        for j in range(env_grad.size(1)):
-                            grad = env_grad[i][j]
-                            params = model.parameters()
-                            hess_train += torch.autograd.grad(grad, params, create_graph=True)[k][i, j] 
-                hess_train = hess_train / (env_grads[0].size(0)*env_grads[0].size(1)*len(env_grads))
-                """
 
                 train_loss += config.lp_alpha*lp_reg(model, config.lp)
                 test_loss, test_acc, test_prob, test_sample = full_loss_mlp(
-                    model, test, config.fn, config.p, is_div=config.is_div
+                    model, test_batch, config.fn, config.p, is_div=config.is_div
                 )
             pbar.set_postfix(
                 OrderedDict(
@@ -176,6 +178,17 @@ def main(config):
                     Test_acc=test_acc,
                 )
             )
+            if (config.save_models) and (epoch % config.save_every == 0):
+                if test_loss.item() < config.stopping_thresh:
+                    break
+                save_dict = {
+                    "model": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "train_loss": train_loss,
+                    "test_loss": test_loss,
+                    "epoch": epoch,
+                }
+                torch.save(save_dict, config.root / run_name / '{epoch}.pth'.format(epoch=epoch))
             wandb.log(
                 {
                     "epoch": epoch,
@@ -191,33 +204,7 @@ def main(config):
             optimizer.step()
             # scheduler.step()
             optimizer.zero_grad()
-            if test_loss.item() < config.stopping_thresh:
-                break
-            if (config.save_models) and (epoch % config.save_every == 0):
-                if test_loss.item() < config.stopping_thresh:
-                    break
-                save_dict = {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    #'scheduler': scheduler.state_dict(),
-                    "train_loss": train_loss,
-                    "test_loss": test_loss,
-                    "epoch": epoch,
-                }
-                torch.save(save_dict, config.root / run_name / '{epoch}.pth'.format(epoch=epoch))
-                # print(f"Saved model to {root/run_name/f'{epoch}.pth'}")
-        if not config.save_models:
-            os.mkdir(config.root / run_name)
-        save_dict = {
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            #'scheduler': scheduler.state_dict(),
-            "train_loss": train_loss,
-            "test_loss": test_loss,
-            "train_losses": train_losses,
-            "test_losses": test_losses,
-            "epoch": epoch,
-        }
+
         torch.save(save_dict, config.root / run_name / "final.pth")
         wandb.finish()
 
@@ -232,6 +219,8 @@ if __name__ == "__main__":
     parser.add_argument( "--width", type=int, default=48, help="width")
     parser.add_argument( "--is_symmetric_input", action="store_true", help="is_symmetric_input")
     parser.add_argument( "--is_1layer", action="store_true", help="is_1layer")
+    parser.add_argument( "--batch_size", type=int, default=100, help="batch_size")
+    parser.add_argument( "--load_model", type=str, default=None, help="load_model")
     config = Exp()
     config.seed = parser.parse_args().seed
     config.optimizer = parser.parse_args().optimizer
@@ -242,6 +231,8 @@ if __name__ == "__main__":
     config.is_symmetric_input = parser.parse_args().is_symmetric_input
     config.exp_name = "WIDTH_{d_model}".format(d_model=config.d_model)
     config.is_1layer = parser.parse_args().is_1layer
+    config.batch_size = parser.parse_args().batch_size
+    config.load_model = parser.parse_args().load_model
     if config.is_1layer:
         config.exp_name += "_1layer"
     main(config)

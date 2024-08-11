@@ -50,6 +50,7 @@ def prune_loop(
     shuffle=False,
     invert=False,
     weight_ratio=-1,
+    rerand=False,
 ):
     """
     Prunes model according to pruner and returns masked parameters.
@@ -75,6 +76,14 @@ def prune_loop(
         if invert:
             pruner.invert()
         pruner.mask(sparse, scope)
+        
+    if rerand:
+        masked_model = copy.deepcopy(model)
+        model.reinitialize()
+        for (n1, m1), (n2, m2) in zip(
+            masked_model.named_buffers(), model.named_buffers()
+        ):
+            m2.copy_(m1)
 
     # Reainitialize weights
     if reinitialize:
@@ -107,12 +116,12 @@ def prune_loop(
 def main(config):
     if config.fn_name == 'subtract':
         wandb.init(
-            project="Neurips2024_transfer", name=config.exp_name, config=config
+            project="Neurips2024_transfer2", name=config.exp_name, config=config
         )
     else:
         wandb.init(
-            project="Neurips2024_delata_t_2", name=config.exp_name, config=config
-    )
+            project="Neurips2024_prune_rerand", name=config.exp_name, config=config
+        )
     if config.model == "transformer":
         model = Transformer(
             num_layers=config.num_layers,
@@ -196,7 +205,7 @@ def main(config):
         torch.save(save_dict, config.root / run_name / "init.pth")
     train_losses = []
     test_losses = []
-    model.relive_neurons()
+    # model.relive_neurons()
     #model.random_priod()
     same_norm_init = False
     if same_norm_init:
@@ -321,8 +330,9 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epoch", default="final", help="checkpoint epoch")
     parser.add_argument("-m", "--pruner", type=str, default="mag", help="pruner")
     parser.add_argument("-w", "--weight_path", type=str, default="add", help="fn_name")
-    parser.add_argument("-lr", "--lr", type=float, default=1e-2, help="learning rate")
+    parser.add_argument("-lr", "--lr", type=float, default=1e-3, help="learning rate")
     parser.add_argument("-wd", "--weight_decay", type=float, default=1, help="weight decay")
+    parser.add_argument("--rerand", action="store_true", help="rerand")
     config = Exp()
     config.sparsity = parser.parse_args().prune_rate
     config.seed = parser.parse_args().seed
@@ -330,4 +340,5 @@ if __name__ == "__main__":
     config.pruner = parser.parse_args().pruner
     config.lr = parser.parse_args().lr
     config.weight_decay = parser.parse_args().weight_decay
+    config.rerand = parser.parse_args().rerand
     main(config)
