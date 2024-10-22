@@ -1,7 +1,7 @@
-# Grokking Tickets: Lottery Tickets Accelerate Grokking
+# Bridging Lottery ticket and Grokking: Is Weight Norm Sufficient to Explain Delayed Generalization?
 --- 
 by Gouki Minegishi, Yusuke iwasawa, Yutaka Matsuo  
-arxiv link : ...  
+arxiv link : https://arxiv.org/abs/2310.19470　
 ![Test Image 1](assets/fig1.png)
 
 ## Setup
