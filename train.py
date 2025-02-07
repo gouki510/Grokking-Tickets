@@ -35,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="Neurips2024_grokking", name=config.exp_name, config=config)
+    wandb.init(project="TMLR_grokking", name=config.exp_name, config=config)
     if config.model == "transformer":
         model = Transformer(
             num_layers=config.num_layers,

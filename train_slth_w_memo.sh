@@ -1,12 +1,12 @@
 #!/usr/bin/zsh 
 s=0
 
-# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width 48 --weight_learning True
-# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_init_path /home/0120/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth
-# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width 128 --weight_learning True
-# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 4 --weight_init_path /home/0120/slth/WIDTHRATIO_4_WEIGHTLR_True/400.pth
+python train_slth.py -o adam -w 1 -l 0.001 -s $s --width 48 --weight_learning 
+python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 1 --weight_init_path /workspace/Grokking-Tickets/20250207/slth/WIDTHRATIO_1_WEIGHTLR_True/1000.pth
+# # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width 128 --weight_learning True
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 4 --weight_init_path /workspace/Grokking-Tickets/20250207/slth/WIDTHRATIO_4_WEIGHTLR_True/400.pth
 
-# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 8 --weight_init_path /home/0120/slth/WIDTHRATIO_8_WEIGHTLR_True/400.pth
+# python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 8 --weight_init_path /workspace/Grokking-Tickets/20250207/slth/WIDTHRATIO_8_WEIGHTLR_True/400.pth
 
 # python train_slth.py -o adam -w 1 -l 0.001 -s $s --width_ratio 16 --weight_init_path /home/0120/slth/WIDTHRATIO_16_WEIGHTLR_True/400.pth
 

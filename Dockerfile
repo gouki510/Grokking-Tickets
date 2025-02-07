@@ -1,34 +1,34 @@
-# Select base image: https://catalog.ngc.nvidia.com/containers
-# https://qiita.com/k_ikasumipowder/items/32bf0bc781cbbdfa2edb#%E8%A4%87%E6%95%B0%E3%81%AE%E3%83%90%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3%E3%81%AE%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%81%AE%E3%83%86%E3%82%B9%E3%83%88
-FROM nvidia/cudagl:10.2-devel-ubuntu18.04
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-devel
 
-# https://zenn.dev/flyingbarbarian/scraps/1275681132babd
-ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]
 
-# install zsh https://github.com/ohmyzsh/ohmyzsh#prerequisites
-RUN apt-get update -y && apt-get -y upgrade && apt-get install -y \
-    wget curl git zsh
-SHELL ["/bin/zsh", "-c"]
-RUN curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh | zsh
+RUN apt-get update -q \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    cmake \
+    curl \
+    git \
+    ffmpeg \
+    libgl1-mesa-dev \
+    libgl1-mesa-glx \
+    libglew-dev \
+    libosmesa6-dev \
+    net-tools \
+    software-properties-common \
+    swig \
+    unzip \
+    vim \
+    wget \
+    xpra \
+    xserver-xorg-dev \
+    zlib1g-dev \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# install pyenv
-RUN apt-get update -y && apt-get -y upgrade && apt-get install -y \
-    make build-essential libssl-dev zlib1g-dev libbz2-dev \
-    libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev \
-    libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev python-openssl git
-RUN curl https://pyenv.run | zsh && \
-    echo '' >> /root/.zshrc && \
-    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> /root/.zshrc && \
-    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> /root/.zshrc && \
-    echo 'eval "$(pyenv init --path)"' >> /root/.zshrc && \
-    echo 'eval "$(pyenv virtualenv-init -)"' >> /root/.zshrc && \
-    source /root/.zshrc && \
-    pyenv install 3.8.0 && \
-    pyenv global 3.8.0 && \
-    pip install -U pip
-
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-WORKDIR /root
-CMD ["zsh"]
-
+# python
+# RUN pip install blobfile mod torcheval
+# RUN conda install scipy matplotlib pandas plotly seaborn
+# RUN conda install -c conda-forge lightning
+# RUN conda install -c conda-forge wandb
+# RUN conda install -c conda-forge einops
+# RUN pip install -r emergent_in_context_learning/requirements.txt

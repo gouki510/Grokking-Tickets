@@ -35,7 +35,7 @@ import argparse
 
 
 def main(config):
-    wandb.init(project="grokking_ICML_rebuttal", name=config.exp_name, config=config)
+    wandb.init(project="TMLR_grokking", name=config.exp_name, config=config)
     model = SLTHMLP(
         num_layers=config.num_layers,
         d_vocab=config.d_vocab,
